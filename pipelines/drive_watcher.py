@@ -44,11 +44,26 @@ def poll_once() -> None:
     """One pass through all clients' /raw/{firefly,email,onboarding}/ folders.
 
     1. For each client, page through Drive's changes.list since last token.
-    2. For each new file, dispatch to the right normalizer.
+    2. For each new file, dispatch to the right normalizer:
+       - .mp3/.m4a/.wav under /raw/firefly/ → Whisper transcribe → write
+         /raw/firefly/<call>-transcript.json (raw) AND trigger the
+         `fireflies-extractor` subagent to produce structured records under
+         /processed/commitments/<client>/.
+       - .eml/.msg under /raw/email/ → parse + strip signatures + redact
+         PII → /processed/email/. If a commitment is mentioned, also
+         routes to the email-commitment extractor (Phase 4+).
+       - .pdf/.docx under /raw/onboarding/ → text extraction → /processed/
+         onboarding/. Onboarding intake commitments routed to commitment
+         extraction.
     3. Write normalized output to /processed/<source>/.
     4. Persist the new changes-list page token.
 
-    TODO Phase 3: implement.
+    Note: triggering the orchestrator's `extract-call` task per new transcript
+    is the bridge from raw audio → structured commitments. The orchestrator
+    handles auth + agent invocation; this watcher only detects + dispatches.
+
+    TODO Phase 3: implement detection + Whisper transcription.
+    TODO Phase 3+: wire extract-call dispatch.
     """
     log.warning("not_implemented", message="drive_watcher is a Phase 3 deliverable.")
 
