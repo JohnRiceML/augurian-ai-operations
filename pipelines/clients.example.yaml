@@ -1,0 +1,37 @@
+# Per-client configuration. Single source of truth.
+#
+# Copy this file to clients.yaml and fill in real IDs. clients.yaml is
+# gitignored — never commit live IDs to the public repo.
+#
+# Adding a new client: add a new key under `clients:` with the slug
+# the rest of the system uses (lowercase, no apostrophes). Then make
+# sure the service account has access to that client's GA4, GSC, Ads,
+# Optmyzr accounts (see docs/phases/phase-0-foundation.md).
+
+clients:
+  coborns:
+    name: "Coborn's"
+    drive_folder_id: "REPLACE_WITH_DRIVE_FOLDER_ID"
+    ga4_property_id: "REPLACE_WITH_GA4_PROPERTY_ID"      # numeric, e.g. "123456789"
+    gsc_site_url: "https://www.coborns.com/"             # exact form GSC uses (sc-domain: or full URL)
+    ads_customer_id: "REPLACE_WITH_ADS_CUSTOMER_ID"      # 10 digits, no dashes
+    optmyzr_account_id: "REPLACE_WITH_OPTMYZR_ID"
+    timezone: "America/Chicago"
+    slack_channel: "#client-coborns"
+    redaction_list:
+      # Names / terms to redact from audit logs in addition to the
+      # default phone/email regex pass. Account leads add to this when
+      # they spot something the regex won't catch.
+      # - "Customer name that recurs in Firefly transcripts"
+
+  # Theisen's — added in Phase 4. Uncomment when onboarded.
+  # theisens:
+  #   name: "Theisen's"
+  #   drive_folder_id: "REPLACE_WITH_DRIVE_FOLDER_ID"
+  #   ga4_property_id: "REPLACE_WITH_GA4_PROPERTY_ID"
+  #   gsc_site_url: "sc-domain:theisens.com"
+  #   ads_customer_id: "REPLACE_WITH_ADS_CUSTOMER_ID"
+  #   optmyzr_account_id: "REPLACE_WITH_OPTMYZR_ID"
+  #   timezone: "America/Chicago"
+  #   slack_channel: "#client-theisens"
+  #   redaction_list: []

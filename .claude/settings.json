@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pwd)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python -m ruff:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(pip install -e .[dev])",
+      "Bash(pip list:*)",
+      "Bash(python -c:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(curl:*production*)",
+      "Bash(gcloud:*delete*)",
+      "Bash(gcloud:*remove*)",
+      "Read(./.env)",
+      "Read(./credentials/**)",
+      "Read(./service-account-*.json)"
+    ]
+  }
+}

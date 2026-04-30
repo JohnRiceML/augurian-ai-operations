@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "augurian-ai-operations"
+version = "0.1.0"
+description = "Claude Agent SDK orchestrator + scheduled pipelines for Augurian's marketing-ops work."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "Augurian", email = "ai-ops@augurian.com" }]
+
+dependencies = [
+    # Orchestrator
+    "claude-agent-sdk>=0.1.0",
+    "anthropic>=0.50.0",
+
+    # Google APIs (pullers)
+    "google-api-python-client>=2.150.0",
+    "google-auth>=2.35.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-analytics-data>=0.18.0",
+    "google-ads>=25.0.0",
+
+    # Slack
+    "slack-sdk>=3.33.0",
+
+    # Audio transcription (Firefly normalizer)
+    "openai>=1.50.0",
+
+    # Data wrangling
+    "pandas>=2.2.0",
+    "pyarrow>=18.0.0",  # for parquet, optional but cheap
+
+    # Config + CLI
+    "pyyaml>=6.0",
+    "click>=8.1.0",
+    "python-dotenv>=1.0.0",
+    "structlog>=24.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "types-PyYAML",
+]
+
+[project.scripts]
+ga4-pull       = "pipelines.ga4_puller:main"
+gsc-pull       = "pipelines.gsc_puller:main"
+ads-pull       = "pipelines.ads_puller:main"
+optmyzr-pull   = "pipelines.optmyzr_puller:main"
+drive-watch    = "pipelines.drive_watcher:main"
+augur          = "orchestrator.main:cli"
+
+[tool.setuptools.packages.find]
+include = ["orchestrator*", "pipelines*"]
+exclude = ["tests*", "examples*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.mypy]
+python_version = "3.11"
+strict = false  # tighten as the codebase matures
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

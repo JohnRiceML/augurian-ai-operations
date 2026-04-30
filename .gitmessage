@@ -1,0 +1,15 @@
+# <type>(<scope>): <short summary — imperative, lowercase, no trailing period>
+#
+# Why is this change needed? (the diff shows what — capture intent here)
+#
+#
+# Refs: docs/path/to/relevant.md   (or #issue-number, or commit sha)
+#
+# ----- Conventional Commits cheatsheet -----
+# Types:    feat | fix | docs | chore | refactor | test | perf | ci
+# Scopes:   orchestrator | pipelines | agents | skills | docs | config
+# Subject:  imperative mood ("add", not "added"), ≤ 60 chars, no period
+# Body:     explain WHY, wrap at 72 chars, blank line above
+# Footer:   Refs: ... | BREAKING CHANGE: ... | Co-Authored-By: ...
+#
+# Activate per-repo with:    git config commit.template .gitmessage
