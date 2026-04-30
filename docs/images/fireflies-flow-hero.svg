@@ -1,46 +1,56 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 720" role="img" aria-labelledby="title desc">
   <title id="title">How a Fireflies call becomes a verified answer in Slack</title>
-  <desc id="desc">A horizontal flow: Fireflies records the call, OpenAI Whisper transcribes the audio, the file lands in Google Drive, Claude extracts structured commitments and writes them to a labeled index, a user asks a question in Slack, Claude reads the index and replies, and an Augurian account lead verifies the answer before it informs a status meeting.</desc>
+  <desc id="desc">A horizontal six-stage flow: Fireflies records the call, OpenAI Whisper transcribes the audio, the file lands in Google Drive (raw), Claude extracts structured commitments, the records are written to a labeled index in Drive, and a Slack reply is verified by an Augurian account lead before it reaches a client.</desc>
 
   <defs>
-    <!-- Subtle drop shadow for cards -->
     <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
-      <feOffset dx="0" dy="2" result="offsetblur"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.18"/></feComponentTransfer>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="3" result="offsetblur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.22"/></feComponentTransfer>
       <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
 
-    <!-- Marker for arrowheads -->
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <filter id="panelShadow" x="-3%" y="-15%" width="106%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.14"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#5B6F7A"/>
     </marker>
 
     <style>
       .bg          { fill: #FAF6EE; }
+      .panel       { fill: #FFFFFF; stroke: #E5DFD2; stroke-width: 1; }
       .title-text  { font: 700 32px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #1F2937; }
-      .subtitle    { font: 500 16px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #4B5563; letter-spacing: 0.6px; }
+      .subtitle    { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #5B6F7A; letter-spacing: 1.6px; }
       .card-name   { font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; }
-      .card-action { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; opacity: 0.9; }
-      .card-detail { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; opacity: 0.75; }
-      .arrow-label { font: 600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #5B6F7A; letter-spacing: 0.4px; text-transform: uppercase; }
-      .step-num    { font: 700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; opacity: 0.6; letter-spacing: 0.8px; }
-      .callout     { font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #1F2937; }
-      .callout-q   { font: italic 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #1F2937; }
-      .callout-a   { font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #4B5563; }
-      .badge       { font: 600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; letter-spacing: 1px; }
+      .card-action { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; }
+      .card-detail { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; opacity: 0.88; }
+      .step-num    { font: 700 10px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; opacity: 0.82; letter-spacing: 1.2px; }
+      .arrow-label { font: 700 10px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #5B6F7A; letter-spacing: 1.2px; text-transform: uppercase; }
+      .callout-h   { font: 700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #5B6F7A; letter-spacing: 1.4px; text-transform: uppercase; }
+      .callout-q   { font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #1F2937; }
+      .callout-a   { font: 400 14px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #374151; }
+      .callout-foot{ font: italic 500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #5B6F7A; }
+      .qa-letter   { font: 700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; }
+      .footer      { font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #5B6F7A; letter-spacing: 2px; }
+      .badge       { font: 700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; fill: #FFFFFF; letter-spacing: 1px; }
 
-      /* Dark-mode friendly: the background tint is pale enough that GitHub's dark theme looks OK,
-         but text is forced to dark for readability on the cream */
       @media (prefers-color-scheme: dark) {
         .bg          { fill: #1A1612; }
+        .panel       { fill: #2A2419; stroke: #3A3225; }
         .title-text  { fill: #F5F0E8; }
         .subtitle    { fill: #BFB8AA; }
         .arrow-label { fill: #BFB8AA; }
-        .callout     { fill: #F5F0E8; }
+        .callout-h   { fill: #BFB8AA; }
         .callout-q   { fill: #F5F0E8; }
-        .callout-a   { fill: #BFB8AA; }
+        .callout-a   { fill: #D6CFBF; }
+        .callout-foot{ fill: #BFB8AA; }
+        .footer      { fill: #BFB8AA; }
       }
     </style>
   </defs>
@@ -50,160 +60,177 @@
 
   <!-- Title block -->
   <text x="700" y="58" class="title-text" text-anchor="middle">How a Fireflies call becomes a verified answer</text>
-  <text x="700" y="86" class="subtitle" text-anchor="middle">THE MOST IMPORTANT FLOW IN AUGURIAN'S AI OPS</text>
+  <text x="700" y="84" class="subtitle" text-anchor="middle">THE MOST IMPORTANT FLOW IN AUGURIAN'S AI OPS</text>
+  <line x1="630" y1="98" x2="770" y2="98" stroke="#E8964D" stroke-width="2.5" stroke-linecap="round"/>
 
-  <!-- Decorative accent line under subtitle -->
-  <line x1="600" y1="104" x2="800" y2="104" stroke="#E8964D" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- =====================================================
+       Six uniform cards: w=160, h=210, y=145, gap=52
+       Card x: 60, 282, 504, 726, 948, 1170
+       Arrow centerline y=250
+       ===================================================== -->
 
-  <!-- Stage cards. 7 cards, evenly spaced. Card width 160, gap ~30. -->
-  <!-- Y center for cards: ~ 240 (top of card 160, bottom 320) -->
-
-  <!-- ============ CARD 1: Fireflies ============ -->
-  <g transform="translate(50, 160)" filter="url(#cardShadow)">
-    <rect width="160" height="180" rx="14" fill="#F35F73"/>
-    <text x="20" y="28" class="step-num">STEP 01</text>
-    <!-- Icon: stylized phone/microphone glyph -->
+  <!-- ========== CARD 1: Fireflies ========== -->
+  <g transform="translate(60, 145)" filter="url(#cardShadow)">
+    <rect width="160" height="210" rx="14" fill="#F35F73"/>
+    <text x="80" y="28" class="step-num" text-anchor="middle">STEP 01 · CAPTURE</text>
+    <!-- Microphone -->
     <g transform="translate(60, 50)">
-      <circle cx="20" cy="20" r="20" fill="#FFFFFF" opacity="0.18"/>
-      <path d="M20 8 L20 26 M14 22 a8 8 0 0 0 12 0 M20 30 L20 36 M14 36 L26 36" stroke="#FFFFFF" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <rect x="14" y="0" width="12" height="22" rx="6" fill="#FFFFFF"/>
+      <path d="M8 22 a12 12 0 0 0 24 0" stroke="#FFFFFF" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <line x1="20" y1="34" x2="20" y2="42" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="12" y1="42" x2="28" y2="42" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
     </g>
-    <text x="80" y="124" class="card-name" text-anchor="middle">Fireflies.ai</text>
-    <text x="80" y="146" class="card-action" text-anchor="middle">Records the call</text>
-    <text x="80" y="166" class="card-detail" text-anchor="middle">Auto-captures audio +</text>
-    <text x="80" y="180" class="card-detail" text-anchor="middle">drops .mp3 in Drive</text>
+    <text x="80" y="138" class="card-name" text-anchor="middle">Fireflies.ai</text>
+    <text x="80" y="160" class="card-action" text-anchor="middle">Records the call</text>
+    <text x="80" y="184" class="card-detail" text-anchor="middle">Auto-captures audio</text>
+    <text x="80" y="200" class="card-detail" text-anchor="middle">+ saves to Drive</text>
   </g>
 
   <!-- Arrow 1 -->
-  <line x1="218" y1="250" x2="262" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="240" y="240" class="arrow-label" text-anchor="middle">audio</text>
+  <text x="251" y="240" class="arrow-label" text-anchor="middle">audio</text>
+  <line x1="228" y1="250" x2="274" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ============ CARD 2: Whisper ============ -->
-  <g transform="translate(270, 160)" filter="url(#cardShadow)">
-    <rect width="160" height="180" rx="14" fill="#6F42C1"/>
-    <text x="20" y="28" class="step-num">STEP 02</text>
-    <!-- Icon: stylized waveform -->
-    <g transform="translate(40, 56)">
-      <path d="M5 20 L5 14 L5 26 M15 20 L15 8 L15 32 M25 20 L25 12 L25 28 M35 20 L35 16 L35 24 M45 20 L45 4 L45 36 M55 20 L55 14 L55 26 M65 20 L65 12 L65 28 M75 20 L75 16 L75 24" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+  <!-- ========== CARD 2: Whisper ========== -->
+  <g transform="translate(282, 145)" filter="url(#cardShadow)">
+    <rect width="160" height="210" rx="14" fill="#6F42C1"/>
+    <text x="80" y="28" class="step-num" text-anchor="middle">STEP 02 · TRANSCRIBE</text>
+    <!-- Waveform: 9 bars centered around x=80 -->
+    <g transform="translate(35, 60)" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round">
+      <line x1="5"  y1="14" x2="5"  y2="26"/>
+      <line x1="15" y1="6"  x2="15" y2="34"/>
+      <line x1="25" y1="10" x2="25" y2="30"/>
+      <line x1="35" y1="14" x2="35" y2="26"/>
+      <line x1="45" y1="2"  x2="45" y2="38"/>
+      <line x1="55" y1="8"  x2="55" y2="32"/>
+      <line x1="65" y1="14" x2="65" y2="26"/>
+      <line x1="75" y1="10" x2="75" y2="30"/>
+      <line x1="85" y1="16" x2="85" y2="24"/>
     </g>
-    <text x="80" y="124" class="card-name" text-anchor="middle">OpenAI Whisper</text>
-    <text x="80" y="146" class="card-action" text-anchor="middle">Transcribes audio</text>
-    <text x="80" y="166" class="card-detail" text-anchor="middle">Speaker labels +</text>
-    <text x="80" y="180" class="card-detail" text-anchor="middle">timestamp anchors</text>
+    <text x="80" y="138" class="card-name" text-anchor="middle">OpenAI Whisper</text>
+    <text x="80" y="160" class="card-action" text-anchor="middle">Transcribes audio</text>
+    <text x="80" y="184" class="card-detail" text-anchor="middle">Speakers + timestamps</text>
+    <text x="80" y="200" class="card-detail" text-anchor="middle">~$0.006 / minute</text>
   </g>
 
   <!-- Arrow 2 -->
-  <line x1="438" y1="250" x2="482" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="460" y="240" class="arrow-label" text-anchor="middle">text</text>
+  <text x="473" y="240" class="arrow-label" text-anchor="middle">text</text>
+  <line x1="450" y1="250" x2="496" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ============ CARD 3: Google Drive (raw) ============ -->
-  <g transform="translate(490, 160)" filter="url(#cardShadow)">
-    <rect width="160" height="180" rx="14" fill="#4285F4"/>
-    <text x="20" y="28" class="step-num">STEP 03</text>
-    <!-- Icon: stylized drive/folder -->
-    <g transform="translate(50, 50)">
-      <path d="M5 30 L20 5 L40 5 L55 30 Z" fill="#FFFFFF" opacity="0.25"/>
-      <path d="M5 30 L60 30 L45 5 L20 5 Z" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- ========== CARD 3: Drive (raw) ========== -->
+  <g transform="translate(504, 145)" filter="url(#cardShadow)">
+    <rect width="160" height="210" rx="14" fill="#4285F4"/>
+    <text x="80" y="28" class="step-num" text-anchor="middle">STEP 03 · STORE</text>
+    <!-- Folder: tab + body -->
+    <g transform="translate(50, 56)">
+      <path d="M0 12 L0 4 a4 4 0 0 1 4 -4 L18 0 L24 8 Z" fill="#FFFFFF" opacity="0.7"/>
+      <rect x="0" y="8" width="60" height="36" rx="4" fill="#FFFFFF" opacity="0.95"/>
     </g>
-    <text x="80" y="124" class="card-name" text-anchor="middle">Google Drive</text>
-    <text x="80" y="146" class="card-action" text-anchor="middle">Lands in /raw/firefly/</text>
-    <text x="80" y="166" class="card-detail" text-anchor="middle">Per-client folder</text>
-    <text x="80" y="180" class="card-detail" text-anchor="middle">audit-of-record</text>
+    <text x="80" y="138" class="card-name" text-anchor="middle">Google Drive</text>
+    <text x="80" y="160" class="card-action" text-anchor="middle">Lands in /raw/firefly/</text>
+    <text x="80" y="184" class="card-detail" text-anchor="middle">Per-client folder</text>
+    <text x="80" y="200" class="card-detail" text-anchor="middle">audit-of-record</text>
   </g>
 
   <!-- Arrow 3 -->
-  <line x1="658" y1="250" x2="702" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="680" y="240" class="arrow-label" text-anchor="middle">trigger</text>
+  <text x="695" y="240" class="arrow-label" text-anchor="middle">trigger</text>
+  <line x1="672" y1="250" x2="718" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ============ CARD 4: Claude (extractor) ============ -->
-  <g transform="translate(710, 160)" filter="url(#cardShadow)">
-    <rect width="160" height="180" rx="14" fill="#C97B45"/>
-    <text x="20" y="28" class="step-num">STEP 04</text>
-    <!-- Icon: stylized "extract" mark — small dots being collected -->
-    <g transform="translate(48, 50)">
-      <circle cx="10" cy="10" r="3" fill="#FFFFFF" opacity="0.7"/>
-      <circle cx="30" cy="6" r="3" fill="#FFFFFF" opacity="0.7"/>
-      <circle cx="50" cy="14" r="3" fill="#FFFFFF" opacity="0.7"/>
-      <circle cx="20" cy="22" r="3" fill="#FFFFFF" opacity="0.7"/>
-      <circle cx="42" cy="26" r="3" fill="#FFFFFF" opacity="0.7"/>
-      <path d="M30 36 L30 30 M22 36 L38 36 L34 42 L26 42 Z" stroke="#FFFFFF" stroke-width="2" fill="#FFFFFF" opacity="0.9"/>
+  <!-- ========== CARD 4: Claude (extractor) ========== -->
+  <g transform="translate(726, 145)" filter="url(#cardShadow)">
+    <rect width="160" height="210" rx="14" fill="#C97B45"/>
+    <text x="80" y="28" class="step-num" text-anchor="middle">STEP 04 · EXTRACT</text>
+    <!-- Document with sparkle (extraction) -->
+    <g transform="translate(50, 50)">
+      <path d="M0 0 L34 0 L46 12 L46 56 a2 2 0 0 1 -2 2 L2 58 a2 2 0 0 1 -2 -2 Z" fill="#FFFFFF" opacity="0.95"/>
+      <path d="M34 0 L34 12 L46 12" fill="none" stroke="#C97B45" stroke-width="1.5" opacity="0.55"/>
+      <rect x="6"  y="22" width="30" height="2.5" rx="1" fill="#C97B45" opacity="0.55"/>
+      <rect x="6"  y="30" width="24" height="2.5" rx="1" fill="#C97B45" opacity="0.55"/>
+      <rect x="6"  y="38" width="20" height="2.5" rx="1" fill="#C97B45" opacity="0.55"/>
+      <path d="M58 6 L60 14 L68 16 L60 18 L58 26 L56 18 L48 16 L56 14 Z" fill="#FFFFFF"/>
     </g>
-    <text x="80" y="124" class="card-name" text-anchor="middle">Claude (Anthropic)</text>
-    <text x="80" y="146" class="card-action" text-anchor="middle">Extracts commitments</text>
-    <text x="80" y="166" class="card-detail" text-anchor="middle">Deliverables, action items,</text>
-    <text x="80" y="180" class="card-detail" text-anchor="middle">decisions, blockers</text>
+    <text x="80" y="138" class="card-name" text-anchor="middle">Claude (Anthropic)</text>
+    <text x="80" y="160" class="card-action" text-anchor="middle">Extracts commitments</text>
+    <text x="80" y="184" class="card-detail" text-anchor="middle">Deliverables · decisions</text>
+    <text x="80" y="200" class="card-detail" text-anchor="middle">action items · blockers</text>
   </g>
 
   <!-- Arrow 4 -->
-  <line x1="878" y1="250" x2="922" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="900" y="240" class="arrow-label" text-anchor="middle">JSON</text>
+  <text x="917" y="240" class="arrow-label" text-anchor="middle">JSON</text>
+  <line x1="894" y1="250" x2="940" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ============ CARD 5: Drive (indexed) ============ -->
-  <g transform="translate(930, 160)" filter="url(#cardShadow)">
-    <rect width="160" height="180" rx="14" fill="#1A73E8"/>
-    <text x="20" y="28" class="step-num">STEP 05</text>
-    <!-- Icon: stack of structured records -->
-    <g transform="translate(50, 50)">
-      <rect x="0" y="2" width="60" height="6" rx="2" fill="#FFFFFF" opacity="0.7"/>
-      <rect x="0" y="14" width="50" height="6" rx="2" fill="#FFFFFF" opacity="0.7"/>
-      <rect x="0" y="26" width="55" height="6" rx="2" fill="#FFFFFF" opacity="0.7"/>
-      <rect x="0" y="38" width="45" height="6" rx="2" fill="#FFFFFF" opacity="0.7"/>
+  <!-- ========== CARD 5: Drive (indexed) ========== -->
+  <g transform="translate(948, 145)" filter="url(#cardShadow)">
+    <rect width="160" height="210" rx="14" fill="#1A73E8"/>
+    <text x="80" y="28" class="step-num" text-anchor="middle">STEP 05 · INDEX</text>
+    <!-- Stack of structured rows -->
+    <g transform="translate(45, 52)">
+      <rect x="0" y="0"  width="70" height="10" rx="3" fill="#FFFFFF" opacity="0.95"/>
+      <rect x="0" y="14" width="58" height="10" rx="3" fill="#FFFFFF" opacity="0.85"/>
+      <rect x="0" y="28" width="64" height="10" rx="3" fill="#FFFFFF" opacity="0.75"/>
+      <rect x="0" y="42" width="50" height="10" rx="3" fill="#FFFFFF" opacity="0.65"/>
     </g>
-    <text x="80" y="124" class="card-name" text-anchor="middle">/commitments/</text>
-    <text x="80" y="146" class="card-action" text-anchor="middle">Indexed JSONL</text>
-    <text x="80" y="166" class="card-detail" text-anchor="middle">Append-only,</text>
-    <text x="80" y="180" class="card-detail" text-anchor="middle">queryable in ms</text>
+    <text x="80" y="138" class="card-name" text-anchor="middle">/commitments/</text>
+    <text x="80" y="160" class="card-action" text-anchor="middle">Indexed JSONL</text>
+    <text x="80" y="184" class="card-detail" text-anchor="middle">Append-only log,</text>
+    <text x="80" y="200" class="card-detail" text-anchor="middle">queryable in ms</text>
   </g>
 
   <!-- Arrow 5 -->
-  <line x1="1098" y1="250" x2="1142" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="1120" y="240" class="arrow-label" text-anchor="middle">query</text>
+  <text x="1139" y="240" class="arrow-label" text-anchor="middle">query</text>
+  <line x1="1116" y1="250" x2="1162" y2="250" stroke="#5B6F7A" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ============ CARD 6: Slack ============ -->
-  <g transform="translate(1150, 160)" filter="url(#cardShadow)">
-    <rect width="200" height="180" rx="14" fill="#4A154B"/>
-    <text x="20" y="28" class="step-num">STEP 06 — ANSWER</text>
-    <!-- Icon: stylized chat bubbles -->
-    <g transform="translate(70, 50)">
-      <rect x="0" y="0" width="32" height="20" rx="6" fill="#FFFFFF" opacity="0.85"/>
-      <rect x="20" y="22" width="36" height="20" rx="6" fill="#E8964D" opacity="0.95"/>
+  <!-- ========== CARD 6: Slack reply (human-verified) ========== -->
+  <g transform="translate(1170, 145)" filter="url(#cardShadow)">
+    <rect width="160" height="210" rx="14" fill="#4A154B"/>
+    <text x="80" y="28" class="step-num" text-anchor="middle">STEP 06 · ANSWER</text>
+    <!-- Chat bubble with checkmark -->
+    <g transform="translate(50, 52)">
+      <path d="M0 8 a8 8 0 0 1 8 -8 L52 0 a8 8 0 0 1 8 8 L60 32 a8 8 0 0 1 -8 8 L20 40 L8 50 L10 40 L8 40 a8 8 0 0 1 -8 -8 Z" fill="#FFFFFF" opacity="0.95"/>
+      <path d="M16 22 L26 30 L44 12" stroke="#E8964D" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
-    <text x="100" y="124" class="card-name" text-anchor="middle">Slack + Account lead</text>
-    <text x="100" y="146" class="card-action" text-anchor="middle">Asks → verifies → ships</text>
-    <text x="100" y="166" class="card-detail" text-anchor="middle">Human reviews answer</text>
-    <text x="100" y="180" class="card-detail" text-anchor="middle">before it leaves Augurian</text>
-    <!-- "human-reviewed" tag -->
-    <rect x="20" y="50" width="60" height="14" rx="7" fill="#E8964D"/>
-    <text x="50" y="60" class="badge" text-anchor="middle">HUMAN ✓</text>
+    <text x="80" y="138" class="card-name" text-anchor="middle">Slack reply</text>
+    <text x="80" y="160" class="card-action" text-anchor="middle">Verified by lead</text>
+    <text x="80" y="184" class="card-detail" text-anchor="middle">Human reviews before</text>
+    <text x="80" y="200" class="card-detail" text-anchor="middle">it leaves Augurian</text>
   </g>
 
-  <!-- ============ CALLOUT BOX: Example query ============ -->
-  <g transform="translate(80, 410)">
-    <rect width="1240" height="220" rx="16" fill="#FFFFFF" opacity="0.7" stroke="#E8964D" stroke-width="2"/>
-
-    <text x="40" y="48" class="callout" font-weight="700">Example — A partner prepping for a status meeting:</text>
-
-    <!-- Question -->
-    <g transform="translate(40, 70)">
-      <rect width="14" height="14" rx="4" fill="#4A154B"/>
-      <text x="14" y="11" class="badge" text-anchor="middle">Q</text>
-      <text x="32" y="12" class="callout-q">"What were the top deliverables for Coborn's for next month?"</text>
-    </g>
-
-    <!-- Answer -->
-    <g transform="translate(40, 110)">
-      <rect width="14" height="14" rx="4" fill="#E8964D"/>
-      <text x="14" y="11" class="badge" text-anchor="middle">A</text>
-      <text x="32" y="12" class="callout-a">Top 5 open deliverables for Coborn's, due 2026-06-01 to 2026-06-30, sorted by priority:</text>
-    </g>
-
-    <text x="62" y="138" class="callout-a">1.  Q3 SEO brief — due Jun 4, owner: Sarah, captured in May 4 monthly review @ 14:32</text>
-    <text x="62" y="158" class="callout-a">2.  Spring Saver paid pacing review — due Jun 10, captured in May 11 status call @ 22:18</text>
-    <text x="62" y="178" class="callout-a">3.  Curbside landing page redesign brief — due Jun 14, captured in May 4 monthly review @ 31:05</text>
-
-    <text x="40" y="206" class="callout-a" font-style="italic" opacity="0.85">No vector DB. No fuzzy search. Just labeled extraction + a flat index — answers in milliseconds.</text>
+  <!-- HUMAN ✓ pill anchored above Card 6 -->
+  <g transform="translate(1250, 122)">
+    <rect x="-38" y="0" width="76" height="20" rx="10" fill="#E8964D"/>
+    <text x="0" y="14" class="badge" text-anchor="middle">HUMAN ✓</text>
   </g>
 
-  <!-- Bottom accent line -->
-  <line x1="80" y1="680" x2="1320" y2="680" stroke="#E8964D" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-  <text x="700" y="700" class="subtitle" text-anchor="middle" style="font-size: 12px; letter-spacing: 1px;">AUGURIAN AI OPERATIONS · DRAFTER PATTERN · NEVER PUBLISHER</text>
+  <!-- ============ EXAMPLE PANEL ============ -->
+  <g transform="translate(80, 400)" filter="url(#panelShadow)">
+    <rect class="panel" width="1240" height="240" rx="16"/>
+    <!-- Left accent stripe -->
+    <rect x="0" y="0" width="6" height="240" rx="3" fill="#E8964D"/>
+
+    <text x="40" y="40" class="callout-h">Example — partner prepping for a status meeting</text>
+
+    <!-- Q row -->
+    <g transform="translate(40, 64)">
+      <rect width="22" height="22" rx="11" fill="#4A154B"/>
+      <text x="11" y="15" class="qa-letter" text-anchor="middle">Q</text>
+      <text x="36" y="16" class="callout-q">"What were the top deliverables for Coborn's for next month?"</text>
+    </g>
+
+    <!-- A row -->
+    <g transform="translate(40, 106)">
+      <rect width="22" height="22" rx="11" fill="#E8964D"/>
+      <text x="11" y="15" class="qa-letter" text-anchor="middle">A</text>
+      <text x="36" y="16" class="callout-a">Top 3 open deliverables for Coborn's, due 2026-06-01 to 2026-06-30, sorted by priority:</text>
+    </g>
+
+    <!-- Bulleted answer -->
+    <text x="76" y="154" class="callout-a">1.  Q3 SEO brief — due Jun 4, owner Sarah · captured in May 4 monthly review @ 14:32</text>
+    <text x="76" y="176" class="callout-a">2.  Spring Saver paid pacing review — due Jun 10 · captured in May 11 status call @ 22:18</text>
+    <text x="76" y="198" class="callout-a">3.  Curbside landing-page redesign brief — due Jun 14 · captured in May 4 monthly review @ 31:05</text>
+
+    <text x="40" y="222" class="callout-foot">No vector DB. No fuzzy search. Just labeled extraction + a flat index — answers in milliseconds.</text>
+  </g>
+
+  <!-- Footer -->
+  <line x1="80" y1="675" x2="1320" y2="675" stroke="#E8964D" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+  <text x="700" y="700" class="footer" text-anchor="middle">AUGURIAN AI OPERATIONS · DRAFTER PATTERN · NEVER PUBLISHER</text>
 </svg>
