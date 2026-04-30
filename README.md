@@ -1,46 +1,268 @@
+<div align="center">
+
+<img src="docs/architecture/augurian-logo.svg" alt="Augurian" width="180"/>
+
 # Augurian AI Operations
 
-A Claude Agent SDK orchestrator that drafts (never publishes) marketing-ops work for Augurian's client portfolio. Per-client Google Drive warehouse, scheduled API pulls, Slack/Notion human surfaces.
+**Internal AI assistant for Augurian's marketing-ops work.**
+*Drafts client reports. Spots anomalies. Triages recommendations. Never sends to clients without a human review.*
 
-> **Status:** Phase 0 starter. The repo is scaffolded; foundation work happens in week 1 (see `docs/phases/phase-0-foundation.md`).
+[![Status](https://img.shields.io/badge/status-Phase%200%20starter-orange)](./docs/phases/) &nbsp;
+[![Pilot](https://img.shields.io/badge/Q2%202026-pilot-blue)](./docs/IMPLEMENTATION_PLAYBOOK.md) &nbsp;
+[![Pattern](https://img.shields.io/badge/pattern-drafter%20never%20publisher-green)](./docs/FOR_NON_TECHNICAL_READERS.md) &nbsp;
+[![Clients](https://img.shields.io/badge/pilot%20clients-Coborn's%20%E2%80%A2%20Theisen's-555)](./pipelines/clients.example.yaml)
 
-## Architecture at a glance
+</div>
 
-![Augurian AI architecture](./ARCHITECTURE.svg)
+---
 
-**Five layers, all explicit.** Sources → ingestion pipelines → per-client Drive warehouse → Claude Agent SDK orchestrator + specialist subagents → human review surfaces (Slack, Notion). Open `ARCHITECTURE.svg` in any browser for the full-resolution version. Layer-by-layer breakdown in [`docs/architecture/README.md`](./docs/architecture/README.md). Tool-by-tool decisions and gotchas in [`docs/IMPLEMENTATION_PLAYBOOK.md`](./docs/IMPLEMENTATION_PLAYBOOK.md).
+## What is this, in plain English
 
-## What this is
+A safe AI assistant for Augurian's team. It reads each client's data, drafts the work, and hands the draft to a human at Augurian. The human edits and decides what the client sees. **The AI never reaches the client directly.**
 
-Internal Augurian tooling. Specialist subagents (organic search, paid media, analytics) read per-client data from Google Drive, draft work products (monthly reports, GSC anomaly briefs, ad-pacing notes), and hand them to humans via Slack and Notion. **Every external output is human-reviewed before it ships to a client.** Drafter pattern, never publisher.
+It's not a content generator. It's not a chatbot. It's a way to take the time-consuming-and-mechanical parts of an account lead's work — pulling data, writing first drafts, checking for unusual numbers — and shrink them, so the time-consuming-and-strategic parts (relationships, judgment, calls) get more room.
 
-## The five layers
+**For:** Augurian partners, account leads, paid specialists, SEO specialists.
+**Pilot clients:** Coborn's first, Theisen's second.
 
-1. **Sources** — GA4, GSC, Google Ads, Optmyzr (scheduled API pulls); Firefly call recordings, email, onboarding docs (manual dumps); hand-written client context.
-2. **Ingestion pipelines** — Cloud Scheduler + Python pullers; a Drive-watcher normalizer for manual dumps; markdown context files maintained by account leads.
-3. **Warehouse** — `/Augurian Clients/[Client]/` in Google Drive, with `/raw/`, `/processed/`, `/context/`, `/reports/`, `/audit/`.
-4. **Orchestration** — Claude Agent SDK orchestrator (Opus 4.7) on Cloud Run, spawning specialist subagents per task.
-5. **Human surfaces** — Slack for ad-hoc and clarifying questions, Notion (or Asana) for drafted reports and tasks, manager DM for oversight.
+## How it works in 60 seconds
 
-See `ARCHITECTURE.svg` (root) or `docs/architecture/` for the diagram. See `docs/IMPLEMENTATION_PLAYBOOK.md` for the source-of-truth doc, `docs/README.md` for the full doc index, and `docs/TOOLING_*.md` for verified tool references (MCP servers, Cloud Run, pipeline APIs).
+```mermaid
+flowchart LR
+    A([Account lead<br/>asks a question]) -->|"&commat;augur, draft<br/>April monthly"| B[Augur picks the<br/>right specialist]
+    B --> C[Specialist reads<br/>client data + voice]
+    C --> D[Drafts the report]
+    D --> E([Account lead<br/>reviews and edits])
+    E --> F([Client receives<br/>the human-approved version])
+    style A fill:#FFE4B5,stroke:#333
+    style E fill:#FFE4B5,stroke:#333
+    style F fill:#C8E6C9,stroke:#333
+```
 
-## Subagents and skills (`.claude/`)
+The orange boxes are humans. The green box is the client. Everything between is automation. Every external output passes through a human review.
 
-Two roles, one directory:
+## What's in the stack
 
-**Production specialists** (loaded by the orchestrator at runtime):
+[![Claude](https://img.shields.io/badge/Claude-Opus%204.7-D4A27F?logo=anthropic&logoColor=white)](https://www.anthropic.com)
+[![Google Drive](https://img.shields.io/badge/Google%20Drive-MCP-4285F4?logo=googledrive&logoColor=white)](https://drive.google.com)
+[![Slack](https://img.shields.io/badge/Slack-MCP-4A154B?logo=slack&logoColor=white)](https://slack.com)
+[![Notion](https://img.shields.io/badge/Notion-MCP-000000?logo=notion&logoColor=white)](https://notion.so)
+[![Asana](https://img.shields.io/badge/Asana-MCP-F06A6A?logo=asana&logoColor=white)](https://asana.com)
+[![Google Analytics](https://img.shields.io/badge/Google%20Analytics-GA4-E37400?logo=googleanalytics&logoColor=white)](https://analytics.google.com)
+[![Search Console](https://img.shields.io/badge/Search%20Console-API-4285F4?logo=googlesearchconsole&logoColor=white)](https://search.google.com)
+[![Google Ads](https://img.shields.io/badge/Google%20Ads-API-4285F4?logo=googleads&logoColor=white)](https://ads.google.com)
+[![Optmyzr](https://img.shields.io/badge/Optmyzr-API-FF6B35)](https://optmyzr.com)
+[![Fireflies.ai](https://img.shields.io/badge/Fireflies.ai-transcripts-F35F73)](https://fireflies.ai)
+[![OpenAI Whisper](https://img.shields.io/badge/OpenAI-Whisper-412991?logo=openai&logoColor=white)](https://openai.com/research/whisper)
+[![Cloud Run](https://img.shields.io/badge/Cloud%20Run-deploy-4285F4?logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org)
+
+## A worked example: "What were the top deliverables for Coborn's for next month?"
+
+This is the kind of question Augurian leadership asks before a status meeting. The system answers it in seconds, with sources you can verify.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sarah as Account lead
+    participant Augur
+    participant Drive as Drive warehouse
+    participant FF as Fireflies (verify)
+
+    Sarah->>Augur: What were the top deliverables<br/>for Coborn's for next month?
+    Note over Augur: Loads Coborn's<br/>voice + context (cached)
+    Augur->>Drive: Read commitments index
+    Drive-->>Augur: 47 items
+    Note over Augur: Filter: deliverables,<br/>due next month, status=open<br/>Sort: priority desc
+    Augur-->>Sarah: Top 5 with sources<br/>+ timestamp anchors
+    Sarah->>FF: Verify quote at 14:32<br/>in May 4 call
+    Note over Sarah: Confirms before<br/>status meeting
+```
+
+Sarah's answer arrives looking like:
+
+> *Top 5 open deliverables for Coborn's, due 2026-06-01 to 2026-06-30:*
+>
+> 1. **Q3 SEO brief** — due Jun 4, owner: Sarah, captured in May 4 monthly review @ 14:32
+> 2. **Spring Saver paid pacing review** — due Jun 10, owner: Mike (Augurian), captured in May 11 status call @ 22:18
+> 3. **Curbside landing page redesign brief** — due Jun 14, owner: Sarah, captured in May 4 monthly review @ 31:05
+> 4. *…*
+> 5. *…*
+
+No vector database. No fuzzy search. No inference layer. The system extracts commitments from Fireflies transcripts as they're recorded, indexes them in plain JSON, and answers in milliseconds.
+
+## Where to start, by audience
+
+<table>
+<tr>
+<th width="33%">Augurian partners / leadership</th>
+<th width="33%">Account leads / specialists</th>
+<th width="33%">Engineers / contractors</th>
+</tr>
+<tr>
+<td>
+
+**[Plain-English entry](./docs/FOR_NON_TECHNICAL_READERS.md)** — what this is, who it's for, what to read next.
+
+[Glossary](./docs/GLOSSARY.md) — every term decoded.
+
+[Implementation Playbook](./docs/IMPLEMENTATION_PLAYBOOK.md) — the consultant's brief.
+
+[Adoption Plan](./docs/ADOPTION_PLAN.md) — the team rollout.
+
+[KPI Playbook](./docs/KPI_PLAYBOOK.md) — what success looks like.
+
+[Leadership Brief template](./docs/LEADERSHIP_BRIEF.md) — partner-facing status.
+
+[Vendor Management](./docs/VENDOR_MANAGEMENT.md) — managing the technical builder.
+
+</td>
+<td>
+
+**[Training Guide](./docs/TRAINING_GUIDE.md)** — what Augur is good at, what it's bad at, how to ask good questions.
+
+[Glossary](./docs/GLOSSARY.md) — every term decoded.
+
+[Client context template](./context_templates/client_context_template.md) — the 2-hour interview that makes the system work.
+
+[Disclosure worksheet](./docs/CLIENT_DISCLOSURE_WORKSHEET.md) — per-client AI-disclosure stance.
+
+</td>
+<td>
+
+**[CLAUDE.md](./CLAUDE.md)** — coding conventions and locked-in decisions.
+
+[Phase checklists](./docs/phases/) — week-by-week deliverables.
+
+[Tooling: MCP](./docs/TOOLING_MCP.md) · [Cloud Run](./docs/TOOLING_CLOUD_RUN.md) · [Pipelines](./docs/TOOLING_PIPELINES.md)
+
+[External resources](./docs/EXTERNAL_RESOURCES.md) — what to pull from Anthropic + community.
+
+[`orchestrator/main.py`](./orchestrator/main.py) — entry point.
+
+[`pipelines/ga4_puller.py`](./pipelines/ga4_puller.py) — canonical pipeline pattern.
+
+</td>
+</tr>
+</table>
+
+---
+
+## Architecture
+
+The five-layer architecture, with explicit data pipelines:
+
+<div align="center">
+  <img src="ARCHITECTURE.svg" alt="Augurian AI architecture" width="850"/>
+</div>
+
+```mermaid
+flowchart TB
+    subgraph S1["Layer 1 — Sources (per client)"]
+        GA[GA4]
+        GSC[Search Console]
+        ADS[Google Ads]
+        OPT[Optmyzr]
+        FF[Fireflies calls]
+        EM[Emails / onboarding]
+        CTX[Hand-written<br/>client context]
+    end
+
+    subgraph S2["Layer 2 — Ingestion pipelines"]
+        PULL[Cloud Scheduler<br/>+ Python pullers]
+        WATCH[Drive watcher<br/>+ Whisper + redaction]
+    end
+
+    subgraph S3["Layer 3 — Drive warehouse (per client)"]
+        RAW["/raw/"]
+        PROC["/processed/<br/>+ /commitments/"]
+        CTXF["/context/"]
+        REP["/reports/"]
+        AUD["/audit/"]
+    end
+
+    subgraph S4["Layer 4 — Orchestrator + subagents"]
+        ORCH[Claude Agent SDK<br/>orchestrator]
+        SUB1[Monthly drafter]
+        SUB2[GSC anomaly]
+        SUB3[Organic / Paid<br/>/ Analytics]
+        SUB4[Fireflies extractor<br/>+ commitment tracker]
+    end
+
+    subgraph S5["Layer 5 — Human surfaces"]
+        SLACK[Slack — questions<br/>+ daily digest]
+        NOTION[Notion or Asana —<br/>drafted reports + tasks]
+        DM[Manager DM —<br/>oversight + cost]
+    end
+
+    GA & GSC & ADS & OPT --> PULL
+    FF & EM --> WATCH
+    CTX --> CTXF
+    PULL --> RAW
+    WATCH --> PROC
+    RAW --> PROC
+    PROC & CTXF --> ORCH
+    ORCH --> SUB1 & SUB2 & SUB3 & SUB4
+    SUB1 & SUB2 & SUB3 & SUB4 --> REP
+    SUB1 & SUB2 & SUB3 & SUB4 --> AUD
+    REP --> SLACK & NOTION & DM
+```
+
+Layer-by-layer breakdown in [`docs/architecture/README.md`](./docs/architecture/README.md). Visual deep-dive in [`docs/HOW_IT_WORKS.md`](./docs/HOW_IT_WORKS.md).
+
+## Q2 2026 rollout
+
+```mermaid
+gantt
+    title Q2 2026 phased rollout
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b %d
+    section Foundation
+    Phase 0 — Accounts, Drive, context file (1wk)        :p0, 2026-04-27, 7d
+    section Build
+    Phase 1 — First puller live (GA4, daily) (1wk)       :p1, after p0, 7d
+    Phase 2 — First subagent (monthly drafter) (2wk)     :p2, after p1, 14d
+    Phase 3 — Slack + audit + cost guards (1wk)          :p3, after p2, 7d
+    Phase 4 — Theisen's + GSC anomaly detector (3wk)     :p4, after p3, 21d
+```
+
+Each phase produces a real, reviewable deliverable before the next starts. Per-phase checklists in [`docs/phases/`](./docs/phases/).
+
+## What's NOT in scope for Q2
+
+- **No fine-tuning.** Claude as-is.
+- **No client-facing tools.** Augurian-internal only.
+- **No vector DB / RAG.** Data lives in Drive; the agent reads files directly.
+- **No multi-tenant SaaS.** Built for Augurian, not for resale.
+- **No agent autonomy past drafting.** Every external output is human-reviewed.
+
+## Decisions that need leadership sign-off before week 1
+
+- [ ] **Notion or Asana?** Pick one; don't run both.
+- [ ] **Owner of the Google Cloud project, Anthropic API key, and Slack bot identity** — recommend a dedicated `ai-ops@augurian.com` Workspace user.
+- [ ] **Builder identity** — internal hire, contractor, or consultant.
+- [ ] **Q2 budget envelope** — engineering time + ~$200/mo AI + ~$50/mo tooling.
+- [ ] **Client-AI disclosure** — does Coborn's know AI is in the loop? Worksheet at [`docs/CLIENT_DISCLOSURE_WORKSHEET.md`](./docs/CLIENT_DISCLOSURE_WORKSHEET.md).
+
+---
+
+## Subagents and skills
+
+Two roles in `.claude/agents/`:
+
+**Production specialists** — loaded by the orchestrator at runtime:
 
 | Agent | Job |
 |---|---|
 | `monthly-report-drafter` | Drafts monthly client performance reports |
-| `gsc-anomaly-detector` | Daily Search Console anomaly check (Haiku, low-stakes) |
+| `gsc-anomaly-detector` | Daily Search Console anomaly check (Haiku) |
 | `organic-search` | SEO briefs, technical audits, GSC analysis |
 | `paid-media` | Pacing checks, ad copy, Optmyzr triage |
 | `analytics` | Cross-channel analytics, ad-hoc questions |
-| `fireflies-extractor` | Extracts deliverables / decisions / blockers from call transcripts |
+| `fireflies-extractor` | Extracts deliverables/decisions from call transcripts |
 | `commitment-tracker` | Answers "what's coming up for X?" / "what does Augurian owe Y?" |
 
-**Dev helpers** (Claude Code subagents for engineers and account leads):
+**Dev helpers** — for engineers and account leads working in Claude Code:
 
 | Agent | Job |
 |---|---|
@@ -48,132 +270,91 @@ Two roles, one directory:
 | `mcp-integrator` | Wire and debug MCP server connections |
 | `agent-architect` | Design new specialist subagents |
 | `audit-reviewer` | Read audit logs, summarize daily activity |
-| `drive-warehouse-curator` | Audit per-client Drive folders, fix permission drift |
+| `drive-warehouse-curator` | Audit folder structure, fix permission drift |
+| `drive-data-architect` | Design Drive structure, naming conventions, query paths |
 | `client-onboarder` | Walk through Phase 0 for a new client |
-| `cost-monitor` | Watch token + GCP spend, flag outliers |
-| `ga4-data-expert` | GA4 metric semantics, healthy-account ranges |
-| `context-coach` | Help account leads write `client_context.md` (interview-only, never drafts) |
-| `git-workflow` | Repo's git steward — conventional commits, branch/PR practices, blocks unsafe ops |
-| `code-reviewer` | Reviews PRs against this repo's specific concerns (not generic boilerplate) |
-| `secret-scanner` | Scans changes for leaked API keys / tokens / service-account JSON |
-| `drive-data-architect` | Designs Drive structure, naming conventions, query paths |
-| `adoption-coach` | Watches the audit log for adoption signals; intervenes when usage drops |
-| `leadership-briefing` | Drafts the weekly partner brief from audit + KPI data |
-| `training-designer` | Designs role-specific onboarding sessions for the team |
-| `kpi-tracker` | Computes the KPIs from KPI_PLAYBOOK.md weekly |
-| `change-comms` | Drafts internal Augurian comms (kickoff emails, FAQ, Slack posts) |
-| `vendor-manager` | Helps non-technical leadership manage the technical builder |
-| `ai-literacy-coach` | Plain-English answers to "what does this mean / can it do X?" |
-| `report-reviewer` | Captures account-lead edit patterns, recommends context-file updates |
+| `cost-monitor` | Watch token + GCP spend; flag outliers |
+| `ga4-data-expert` | GA4 metric semantics, healthy ranges |
+| `context-coach` | Help account leads write `client_context.md` (interview-only) |
+| `report-reviewer` | Capture edit patterns; recommend context-file updates |
+| `git-workflow` | Repo's git steward |
+| `code-reviewer` | Reviews PRs against this repo's specific concerns |
+| `secret-scanner` | Pre-push scan for leaked tokens / keys |
+| `adoption-coach` | Watches adoption signals; intervenes on drops |
+| `leadership-briefing` | Drafts the weekly partner brief |
+| `training-designer` | Designs role-specific onboarding |
+| `kpi-tracker` | Computes weekly KPIs |
+| `change-comms` | Drafts internal Augurian comms |
+| `vendor-manager` | Helps non-technical leadership manage the builder |
+| `ai-literacy-coach` | Plain-English answers about the system |
+| `readme-curator` | Owns the public-facing README |
+| `diagram-designer` | Designs mermaid diagrams for non-technical readers |
 
-**Reusable agent skills** (`.claude/skills/`) — load on-demand by any subagent that needs them:
+**Reusable agent skills** in `.claude/skills/`:
 
-- `drive-warehouse` — folder structure, where to read/write, what's read-only
-- `ga4-glossary` — metric/dimension definitions and common quirks
+- `drive-warehouse` — folder structure, where to read/write
+- `ga4-glossary` — metric/dimension definitions
 - `slack-formatting` — channel routing, length limits, mrkdwn
-- `pii-redaction` — what gets redacted, what to flag for the account lead
-- `augurian-voice` — house voice, words to avoid, structure for client-adjacent reports
-- `conventional-commits` — commit message format and scoping
-- `git-safety` — destructive-op rules and incident-response playbook
-- `fireflies-extraction-rules` — what to extract from call transcripts; what to ignore
-- `commitment-labeling` — naming/index conventions for the commitments warehouse
-- `cli-data-tools` — `jq` / `csvkit` / `rclone` one-liners for ad-hoc warehouse queries
+- `pii-redaction` — what gets redacted, what to flag
+- `augurian-voice` — house voice, words to avoid
+- `conventional-commits` — commit message format
+- `git-safety` — destructive-op rules
+- `fireflies-extraction-rules` — what to extract from call transcripts
+- `commitment-labeling` — naming and index conventions
+- `cli-data-tools` — `jq` / `csvkit` / `rclone` one-liners
 
-For more agents/skills published by Anthropic and the community, see [`docs/EXTERNAL_RESOURCES.md`](./docs/EXTERNAL_RESOURCES.md).
-
-## Example end-to-end query
-
-A user in Slack asks `@augur`:
-
-> *"What were the top deliverables for Coborn's for next month?"*
-
-The query path:
-
-1. `commitment-tracker` is invoked.
-2. It reads `/Augurian Clients/Coborn's/processed/commitments/_index.jsonl` — the append-only commitments index assembled by `fireflies-extractor` from Firefly call transcripts (and, in later phases, emails and onboarding docs).
-3. It filters to `client=coborns`, `type ∈ {deliverable, action_item}`, `due_date` in next month, `status=open`.
-4. It sorts by priority desc, due_date asc.
-5. It returns top items with the call source + timestamp anchor so the lead can verify in Fireflies.
-
-The whole flow — from a recording dropped in `/raw/firefly/` to a Slack answer — is the architecture's reason for being. The labeling conventions in `.claude/skills/commitment-labeling/` are what make it work without a vector DB.
-
-## For non-technical readers
-
-If you're an Augurian partner, account lead, or ops team member opening this for the first time — start at [`docs/FOR_NON_TECHNICAL_READERS.md`](./docs/FOR_NON_TECHNICAL_READERS.md). It explains the system in plain English, points to the docs you'll actually use, and names the decisions only Augurian leadership can make.
-
-Other non-technical entry points:
-- [`docs/GLOSSARY.md`](./docs/GLOSSARY.md) — every term decoded
-- [`docs/ADOPTION_PLAN.md`](./docs/ADOPTION_PLAN.md) — week-by-week from the *team's* perspective (not the engineer's)
-- [`docs/LEADERSHIP_BRIEF.md`](./docs/LEADERSHIP_BRIEF.md) — partner-facing status template
-- [`docs/KPI_PLAYBOOK.md`](./docs/KPI_PLAYBOOK.md) — what success looks like
-- [`docs/TRAINING_GUIDE.md`](./docs/TRAINING_GUIDE.md) — onboarding for account leads / specialists
-- [`docs/VENDOR_MANAGEMENT.md`](./docs/VENDOR_MANAGEMENT.md) — how to manage the technical builder
-- [`docs/CLIENT_DISCLOSURE_WORKSHEET.md`](./docs/CLIENT_DISCLOSURE_WORKSHEET.md) — per-client AI-disclosure stance worksheet
+For more agents and skills published by Anthropic and the community, see [`docs/EXTERNAL_RESOURCES.md`](./docs/EXTERNAL_RESOURCES.md).
 
 ## Repository layout
 
 ```
 .
-├── docs/                  # Playbook, architecture, phase checklists
-├── orchestrator/          # Claude Agent SDK app (Python)
-│   ├── main.py            # Entry point — reads clients.yaml, spawns subagents
-│   ├── hooks/             # Audit logging, redaction
-│   └── tools/             # Tool allow/deny config
-├── pipelines/             # Scheduled puller scripts (one per source)
-│   ├── ga4_puller.py
-│   ├── gsc_puller.py
-│   ├── ads_puller.py
-│   ├── optmyzr_puller.py
-│   ├── drive_watcher.py   # Manual-dump normalizer
-│   └── clients.yaml       # Per-client Property IDs / folder mapping
-├── context_templates/     # Starter templates for /context/ markdown files
+├── ARCHITECTURE.svg            # Top-level five-layer diagram
+├── README.md                   # This file
+├── CLAUDE.md                   # Engineer instructions for Claude Code
+├── docs/                       # Audience-tracked docs (non-technical, technical, tooling)
+├── orchestrator/               # Claude Agent SDK app (Python)
+├── pipelines/                  # Scheduled puller scripts (one per source)
+├── context_templates/          # Starter template for /context/client_context.md
+├── examples/                   # Worked examples + test fixtures
 ├── .claude/
-│   ├── agents/            # Claude Code dev-helper subagents (drive engineers
-│   │                      # building this repo) AND production specialist
-│   │                      # subagent prompts (loaded by orchestrator/main.py)
-│   └── settings.json      # Permission allowlists for the dev environment
-└── examples/              # Worked examples & fixtures
+│   ├── agents/                 # 24 subagent definitions
+│   ├── skills/                 # 10 reusable agent-skills
+│   └── settings.json           # Permission allowlist for the dev environment
+├── .pre-commit-config.yaml     # ruff, detect-secrets, large-file guard
+├── .gitmessage                 # Conventional Commits template
+├── pyproject.toml
+├── .env.example
+└── .gitignore
 ```
 
-## Getting started (Phase 0, week 1)
-
-Front-loaded one-time setup. Follow `docs/phases/phase-0-foundation.md` end-to-end before writing any pipeline code.
+## Getting started (for engineers)
 
 ```bash
-# 1. Clone and install
-git clone <this-repo>
+git clone https://github.com/JohnRiceML/augurian-ai-operations.git
 cd augurian-ai-operations
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+pip install pre-commit && pre-commit install
+git config commit.template .gitmessage
 
-# 2. Configure secrets
-cp .env.example .env
-# Edit .env: ANTHROPIC_API_KEY, GOOGLE_APPLICATION_CREDENTIALS path, SLACK_BOT_TOKEN
+cp .env.example .env                                    # fill in secrets
+cp pipelines/clients.example.yaml pipelines/clients.yaml  # add real client IDs
 
-# 3. Add the first client to clients.yaml
-cp pipelines/clients.example.yaml pipelines/clients.yaml
-# Fill in Coborn's GA4 Property ID, Drive folder ID, etc.
-
-# 4. Run a single GA4 pull as a smoke test
-python -m pipelines.ga4_puller --client coborns --days-ago 1
+python -m pipelines.ga4_puller --client coborns --days-ago 1 --dry-run   # smoke test
 ```
 
-## What's NOT in scope for Q2
-
-- **No fine-tuning.** Claude as-is.
-- **No client-facing tools.** Augurian-internal only; clients receive deliverables, not access.
-- **No vector DB / RAG.** Data lives in Drive; agent reads files directly.
-- **No multi-tenant SaaS.** Built for Augurian, not for resale.
-- **No agent autonomy past drafting.** Every external output is human-reviewed.
-
-## Decisions that need leadership sign-off before week 1
-
-- **Notion or Asana?** Pick one. Don't run both.
-- **Owner of the Google Cloud project, Anthropic API key, and Slack bot identity.** Recommend a dedicated `ai-ops@augurian.com` Workspace user.
-- **Builder identity** — internal hire, contractor, or consultant.
-- **Q2 budget envelope** — engineering time + ~$200/mo AI compute + ~$50/mo tooling.
-- **Client-AI disclosure** — does Coborn's know AI is in the loop? Constrains pilot visibility.
+Then walk [`docs/phases/phase-0-foundation.md`](./docs/phases/phase-0-foundation.md) end-to-end.
 
 ## License
 
 Proprietary. Internal Augurian use only.
+
+---
+
+<div align="center">
+
+*Built for Augurian by [Next Gen AI LLC](https://next-gen-ai.com).*
+*Status: Phase 0 starter. Q2 2026 pilot.*
+
+</div>
