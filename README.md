@@ -16,6 +16,32 @@
 
 ---
 
+## ⭐ The flow that matters most
+
+Every conversation Augurian has on a client call is captured by Fireflies. Most of those captures sit in a folder, unread. **This system reads them, extracts what was committed to, and lets a partner ask a question on Friday morning that gets a real answer in seconds — sourced back to the exact moment in the call where the commitment was made.**
+
+<div align="center">
+
+<a href="docs/images/fireflies-flow-hero.svg">
+  <img src="docs/images/fireflies-flow-hero.svg" alt="How a Fireflies call becomes a verified answer in Slack: Fireflies records → Whisper transcribes → Drive stores → Claude extracts → Drive indexes → Slack answers, with human review at the end." width="100%"/>
+</a>
+
+</div>
+
+[![Fireflies.ai](https://img.shields.io/badge/Fireflies.ai-records-F35F73?style=for-the-badge)](https://fireflies.ai)
+[![OpenAI Whisper](https://img.shields.io/badge/Whisper-transcribes-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/research/whisper)
+[![Google Drive](https://img.shields.io/badge/Google%20Drive-stores-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com)
+[![Claude](https://img.shields.io/badge/Claude-extracts-D4A27F?style=for-the-badge&logo=anthropic&logoColor=white)](https://www.anthropic.com)
+[![Drive Index](https://img.shields.io/badge/Drive-indexes-1A73E8?style=for-the-badge&logo=googledrive&logoColor=white)](#)
+[![Slack](https://img.shields.io/badge/Slack-answers-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://slack.com)
+[![Human review](https://img.shields.io/badge/Human-verifies-E8964D?style=for-the-badge)](./docs/FOR_NON_TECHNICAL_READERS.md)
+
+**Why this is the headline flow:** every other capability in this system is in service of this one. The monthly report drafter, the Optmyzr triage, the GSC anomaly detector — they all matter, but none of them answer the question Augurian leadership actually asks before a status meeting: *"what did we commit to, and what's coming up?"*  This flow does, and it does it without a vector database, without fuzzy search, and without any inference layer that could make something up. The labeling convention IS the query interface.
+
+> Read the technical detail in [`docs/HOW_IT_WORKS.md`](./docs/HOW_IT_WORKS.md#how-a-fireflies-call-becomes-an-answer-to-a-leadership-question), the extraction rules in [`.claude/skills/fireflies-extraction-rules/`](./.claude/skills/fireflies-extraction-rules/SKILL.md), and the labeling convention in [`.claude/skills/commitment-labeling/`](./.claude/skills/commitment-labeling/SKILL.md).
+
+---
+
 ## What is this, in plain English
 
 A safe AI assistant for Augurian's team. It reads each client's data, drafts the work, and hands the draft to a human at Augurian. The human edits and decides what the client sees. **The AI never reaches the client directly.**
