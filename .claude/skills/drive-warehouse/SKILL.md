@@ -23,6 +23,10 @@ Every Augurian client has a folder under `/Augurian Clients/[Client]/`. Inside, 
 │   ├── ga4/          YYYY-MM-DD.json    (deduped, schema-stable)
 │   ├── gsc/          YYYY-MM-DD.json
 │   ├── firefly/      YYYY-MM-DD-{call}-transcript.json (PII stripped)
+│   ├── commitments/  Structured extracts from calls/emails/onboarding
+│   │   ├── _index.jsonl              Append-only index — query-side source of truth
+│   │   ├── YYYY-MM-DD-{slug}.json    Per-call/source records (deliverables, etc.)
+│   │   └── YYYY-MM/                  Generated monthly views (upcoming.md, etc.)
 │   └── ...
 ├── context/          READ FIRST, EVERY TASK.
 │   ├── client_context.md       Hand-written by account lead. Voice, goals, hard rules.

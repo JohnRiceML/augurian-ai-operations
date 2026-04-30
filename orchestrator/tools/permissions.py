@@ -32,6 +32,14 @@ SUBAGENT_TOOLS: dict[str, list[str]] = {
     # the daily-rolling anomaly log.
     "gsc-anomaly-detector":   DEFAULT_TOOLS_DRAFTER,
 
+    # Extractor — reads /raw/firefly/ + /context/, writes structured records
+    # to /processed/commitments/. Triggered by drive_watcher per new transcript.
+    "fireflies-extractor":    DEFAULT_TOOLS_DRAFTER,
+
+    # Tracker — pure read+answer over the commitments index. No Write needed;
+    # the index is append-only and only fireflies-extractor writes to it.
+    "commitment-tracker":     DEFAULT_TOOLS_READ_ONLY,
+
     # Dev helpers — get the broader Claude Code surface; they're not
     # production. Defined here so the SDK's runtime knows them by name,
     # but the dev environment grants them via .claude/settings.json

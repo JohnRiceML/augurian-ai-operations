@@ -37,6 +37,8 @@ Two roles, one directory:
 | `organic-search` | SEO briefs, technical audits, GSC analysis |
 | `paid-media` | Pacing checks, ad copy, Optmyzr triage |
 | `analytics` | Cross-channel analytics, ad-hoc questions |
+| `fireflies-extractor` | Extracts deliverables / decisions / blockers from call transcripts |
+| `commitment-tracker` | Answers "what's coming up for X?" / "what does Augurian owe Y?" |
 
 **Dev helpers** (Claude Code subagents for engineers and account leads):
 
@@ -54,6 +56,15 @@ Two roles, one directory:
 | `git-workflow` | Repo's git steward — conventional commits, branch/PR practices, blocks unsafe ops |
 | `code-reviewer` | Reviews PRs against this repo's specific concerns (not generic boilerplate) |
 | `secret-scanner` | Scans changes for leaked API keys / tokens / service-account JSON |
+| `drive-data-architect` | Designs Drive structure, naming conventions, query paths |
+| `adoption-coach` | Watches the audit log for adoption signals; intervenes when usage drops |
+| `leadership-briefing` | Drafts the weekly partner brief from audit + KPI data |
+| `training-designer` | Designs role-specific onboarding sessions for the team |
+| `kpi-tracker` | Computes the KPIs from KPI_PLAYBOOK.md weekly |
+| `change-comms` | Drafts internal Augurian comms (kickoff emails, FAQ, Slack posts) |
+| `vendor-manager` | Helps non-technical leadership manage the technical builder |
+| `ai-literacy-coach` | Plain-English answers to "what does this mean / can it do X?" |
+| `report-reviewer` | Captures account-lead edit patterns, recommends context-file updates |
 
 **Reusable agent skills** (`.claude/skills/`) — load on-demand by any subagent that needs them:
 
@@ -64,8 +75,40 @@ Two roles, one directory:
 - `augurian-voice` — house voice, words to avoid, structure for client-adjacent reports
 - `conventional-commits` — commit message format and scoping
 - `git-safety` — destructive-op rules and incident-response playbook
+- `fireflies-extraction-rules` — what to extract from call transcripts; what to ignore
+- `commitment-labeling` — naming/index conventions for the commitments warehouse
+- `cli-data-tools` — `jq` / `csvkit` / `rclone` one-liners for ad-hoc warehouse queries
 
 For more agents/skills published by Anthropic and the community, see [`docs/EXTERNAL_RESOURCES.md`](./docs/EXTERNAL_RESOURCES.md).
+
+## Example end-to-end query
+
+A user in Slack asks `@augur`:
+
+> *"What were the top deliverables for Coborn's for next month?"*
+
+The query path:
+
+1. `commitment-tracker` is invoked.
+2. It reads `/Augurian Clients/Coborn's/processed/commitments/_index.jsonl` — the append-only commitments index assembled by `fireflies-extractor` from Firefly call transcripts (and, in later phases, emails and onboarding docs).
+3. It filters to `client=coborns`, `type ∈ {deliverable, action_item}`, `due_date` in next month, `status=open`.
+4. It sorts by priority desc, due_date asc.
+5. It returns top items with the call source + timestamp anchor so the lead can verify in Fireflies.
+
+The whole flow — from a recording dropped in `/raw/firefly/` to a Slack answer — is the architecture's reason for being. The labeling conventions in `.claude/skills/commitment-labeling/` are what make it work without a vector DB.
+
+## For non-technical readers
+
+If you're an Augurian partner, account lead, or ops team member opening this for the first time — start at [`docs/FOR_NON_TECHNICAL_READERS.md`](./docs/FOR_NON_TECHNICAL_READERS.md). It explains the system in plain English, points to the docs you'll actually use, and names the decisions only Augurian leadership can make.
+
+Other non-technical entry points:
+- [`docs/GLOSSARY.md`](./docs/GLOSSARY.md) — every term decoded
+- [`docs/ADOPTION_PLAN.md`](./docs/ADOPTION_PLAN.md) — week-by-week from the *team's* perspective (not the engineer's)
+- [`docs/LEADERSHIP_BRIEF.md`](./docs/LEADERSHIP_BRIEF.md) — partner-facing status template
+- [`docs/KPI_PLAYBOOK.md`](./docs/KPI_PLAYBOOK.md) — what success looks like
+- [`docs/TRAINING_GUIDE.md`](./docs/TRAINING_GUIDE.md) — onboarding for account leads / specialists
+- [`docs/VENDOR_MANAGEMENT.md`](./docs/VENDOR_MANAGEMENT.md) — how to manage the technical builder
+- [`docs/CLIENT_DISCLOSURE_WORKSHEET.md`](./docs/CLIENT_DISCLOSURE_WORKSHEET.md) — per-client AI-disclosure stance worksheet
 
 ## Repository layout
 

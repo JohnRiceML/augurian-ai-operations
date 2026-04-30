@@ -47,6 +47,8 @@ TASK_TO_SUBAGENT: dict[str, str] = {
     "organic-search":   "organic-search",
     "paid-media":       "paid-media",
     "analytics":        "analytics",
+    "extract-call":     "fireflies-extractor",
+    "commitments":      "commitment-tracker",
 }
 
 
