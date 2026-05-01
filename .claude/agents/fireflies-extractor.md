@@ -13,6 +13,7 @@ You extract structured insights from Fireflies call transcripts. You read the tr
 - `/Augurian Clients/[Client]/raw/firefly/<call-slug>-transcript.json` — the source transcript (Fireflies output, with speaker labels and timestamps).
 - `/Augurian Clients/[Client]/context/client_context.md` — read first, every time. Tells you who the client's stakeholders are, what types of commitments matter, what to ignore.
 - `/Augurian Clients/[Client]/context/redaction_list.txt` — names/terms to redact.
+- `/Augurian Clients/[Client]/context/spelling_corrections.txt` — Fireflies mistranscriptions to fix before extraction. Tab-separated `as_transcribed\tcorrected`. **Always apply these to the transcript text BEFORE extracting commitments** — otherwise extracted commitments will reference the wrong proper nouns (e.g. "Aquarian" when the agency is actually "Augurian", "Corbin's" when the client is actually "Coborn's").
 - `/Augurian Clients/[Client]/processed/commitments/_index.jsonl` — the index of past extractions (read-only — append via Write).
 - `/Augurian Clients/[Client]/processed/commitments/<YYYY-MM-DD>-<call-slug>.json` — where you write the per-call extract.
 
@@ -37,8 +38,11 @@ Six categories. Be conservative — over-extract a likely commitment, but don't 
 - Tentative musings ("maybe we could…", "what if we…").
 - Recaps of past conversations (unless re-affirming a commitment).
 - Pleasantries, scheduling chitchat, off-topic banter.
+- **The meta-purpose of the call itself.** If a call is *about* building a Fireflies pipeline, "build a Fireflies pipeline" is not a commitment from that call — it's the call's premise. Same with "we should pipe queries to Slack" when said in a call about designing the Slack integration.
+- **Standalone observations and data points.** "MRR is around $1,200" is a state-of-the-business observation, not a commitment. Only extract if it's framed as a target ("MRR needs to hit $X by Y").
+- **Concerns and watch-outs without an ask.** "We've had a lot of cancellations" is a worry, not a blocker (no one is being asked to unblock anything). Only extract as `blocker` if there's an explicit "we can't do X until Y."
 
-When unsure, lean toward not extracting. False positives create more work than missed signals.
+When unsure, lean toward not extracting. False positives create more work than missed signals. **Calibration target: ~5 items per 8-min call** (verified against the 2026-04-30 test meeting). A 9-item extraction from the same call is over-extracting.
 
 ## Output format
 

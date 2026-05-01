@@ -1,0 +1,42 @@
+# Per-client spelling corrections — applied by extractors before commitment extraction
+#
+# Format: <as_transcribed>\t<corrected>
+# One per line. Lines starting with # are comments.
+#
+# Why this exists: Fireflies' transcription is rough on uncommon proper nouns.
+# Verified during the first walkthrough (2026-04-30 test meeting):
+#   - "Augurian" → mistranscribed as both "Aquarian" and "agrarian"
+#   - "Coborn's" → "Corbin's"
+#   - "Claude" → "OpenClaw" / "open Claude" mangled
+# Claude can't correct these without help — so the human-maintained list
+# below is read by the extractor before/during extraction.
+#
+# Update process: when an account lead spots a recurring mistranscription
+# in a client call, append it here. Keep entries to actual proper nouns;
+# don't try to fix general transcription quality.
+#
+# This file lives at: /Augurian Clients/[Client]/context/spelling_corrections.txt
+# It's read by the fireflies-extractor subagent on every run.
+
+# === Always-applied (agency name + product names) ===
+Aquarian	Augurian
+agrarian	Augurian
+OpenClaw	Claude
+open Claude	Claude
+OpenClod	Claude
+OpenCode	Claude
+
+# === Client-specific (replace this section per client) ===
+# For Coborn's:
+# Corbin's	Coborn's
+# Coborns	Coborn's
+# Cobornes	Coborn's
+#
+# For Theisen's:
+# Tysons	Theisen's
+# Tisons	Theisen's
+
+# === Common Augurian product / tooling names ===
+# (add as they appear)
+# clickwise	Clickwise
+# Ready Reach	ReadyReach

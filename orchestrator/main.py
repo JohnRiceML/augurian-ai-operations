@@ -55,29 +55,42 @@ TASK_TO_SUBAGENT: dict[str, str] = {
 def build_mcp_servers(client: ClientConfig, runtime: RuntimeConfig) -> dict[str, dict[str, Any]]:
     """Return the MCP server configuration for this run.
 
-    Drive is per-client (scoped to that client's folder). Slack is shared
-    across clients but the orchestrator passes the client's channel as
-    context so the bot replies in the right place.
+    Drive is per-client (scoped to the client's folder ID). Slack is shared
+    across clients; the orchestrator passes the client's channel via prompt
+    context, not via the MCP server.
 
-    The exact shape depends on the SDK version's `mcp_servers` schema —
-    see the SDK README. The shape below is the documented form for the
-    Drive + Slack MCP servers as of early 2026.
+    Server choices verified against `docs/TOOLING_MCP.md`. Re-read that doc
+    before deploying — the npm package versions and exact shapes can shift.
     """
+    if not client.drive_folder_id:
+        raise ValueError(
+            f"client {client.slug!r} has no drive_folder_id; cannot scope Drive MCP."
+        )
+    if not runtime.google_credentials_path.exists():
+        raise FileNotFoundError(
+            f"GOOGLE_APPLICATION_CREDENTIALS path does not exist: "
+            f"{runtime.google_credentials_path}. Set it in .env."
+        )
+
     servers: dict[str, dict[str, Any]] = {}
 
-    # Google's first-party Drive MCP server. OAuth-based; the SDK handles
-    # the consent flow on first run, then auto-refreshes thereafter.
-    # Audience MUST be Internal — see CLAUDE.md.
+    # Drive — Anthropic reference server (`@modelcontextprotocol/server-gdrive`).
+    # Per docs/TOOLING_MCP.md: there is NO Google first-party Drive MCP for
+    # end users (April 2026); use this reference impl + a service account.
+    # The service account email must be shared on each client's Drive folder.
     servers["google_drive"] = {
-        "type": "url",
-        "url": "https://mcp.googleapis.com/v1/drive",  # placeholder — verify against current Google docs
-        "scopes": ["drive.readonly", "drive.file"],
-        "scope_to_folder_id": client.drive_folder_id,
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-gdrive"],
+        "env": {
+            "GOOGLE_APPLICATION_CREDENTIALS": str(runtime.google_credentials_path),
+            "GDRIVE_FOLDER_ID": client.drive_folder_id,
+        },
     }
 
-    # Slack — production uses npm-based @modelcontextprotocol/server-slack
-    # with a manually-created Bot Token (Slack's first-party MCP requires
-    # Dynamic Client Registration which is unreliable headless).
+    # Slack — `@modelcontextprotocol/server-slack` (npm) with a manually-
+    # created Bot Token. Slack's first-party MCP needs Dynamic Client
+    # Registration which is unreliable headless.
     if runtime.slack_bot_token:
         servers["slack"] = {
             "type": "stdio",

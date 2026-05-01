@@ -7,18 +7,21 @@ the sharp edges before we wire the full system.
 
 What it does:
 
-    auth                One-time OAuth to your Drive (read-only).
-    list                Show recent Fireflies-looking files in your Drive.
-    pull FILE_ID        Download + normalize one Drive file to text.
+    auth                       One-time OAuth to your Drive (read-only).
+    list                       Show recent Fireflies-looking files in your Drive.
+    pull FILE_ID               Download + normalize one Drive file to text.
     extract FILE_ID --client SLUG
-                        Run Claude on the transcript; write structured
-                        commitments to data/walkthrough/processed/commitments/.
-    pull-local PATH     Normalize a LOCAL Fireflies PDF/txt to text. No Drive.
+                               Run Claude on the transcript; write structured
+                               commitments to data/walkthrough/processed/commitments/.
+    pull-local PATH --client SLUG
+                               Normalize a LOCAL Fireflies PDF to text. Writes to
+                               data/walkthrough/raw/firefly/<client>/<slug>-<kind>.txt
+                               so the chatbot can find it. No Drive needed.
     extract-local PATH --client SLUG
-                        Same as `extract`, but reads a local file. Use this
-                        when you've manually downloaded a Fireflies PDF.
-    query "QUESTION" --client SLUG
-                        Answer a question from the local commitment index.
+                               pull-local + run Claude extraction → processed/.
+
+To ask questions of the indexed data, use scripts/ask.py — that's the
+agentic chatbot with the cascade. This file is ingestion only.
 
 Setup once:
 
@@ -348,23 +351,57 @@ def _parse_fireflies_filename(name: str) -> dict[str, str] | None:
     }
 
 
+def _meeting_slug_and_kind(meta: dict[str, Any], path: Path, captured_date: str | None) -> tuple[str, str]:
+    """Derive the canonical (slug, kind) used by the chatbot's read tools.
+    Slug = '<captured_date>-<title-slug>'. Kind = 'summary' | 'transcript'.
+    """
+    fname = meta.get("fireflies_naming") or {}
+    if fname:
+        cap = captured_date or fname["captured_date"]
+        title = _slugify(fname["title"])[:40] or "untitled"
+        return f"{cap}-{title}", fname["kind"]
+    cap = captured_date or meta.get("modifiedTime", "")[:10] or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return f"{cap}-{_slugify(path.stem)[:40] or 'untitled'}", "transcript"
+
+
+def _save_raw_text(client: str, slug: str, kind: str, text: str) -> Path:
+    """Write the normalized text to data/walkthrough/raw/firefly/<client>/<slug>-<kind>.txt."""
+    out_dir = RAW_DIR / client
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"{slug}-{kind}.txt"
+    out.write_text(text)
+    return out
+
+
 @cli.command(name="pull-local")
 @click.argument("path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-def pull_local(path: Path) -> None:
-    """Local-file equivalent of `pull`. No Drive needed."""
+@click.option("--client", required=True, help="Client slug, e.g. sandbox or coborns.")
+@click.option(
+    "--captured-date",
+    default=None,
+    help="ISO date the call happened. Defaults to Fireflies filename or file mtime.",
+)
+def pull_local(path: Path, client: str, captured_date: str | None) -> None:
+    """Local-file equivalent of `pull`. No Drive needed.
+
+    Writes to data/walkthrough/raw/firefly/<client>/<slug>-<kind>.txt where
+    slug + kind are derived from the Fireflies filename pattern. This matches
+    what the chatbot's read_meeting_summary / read_meeting_transcript tools
+    look for.
+    """
     text, meta = _pull_local(path)
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    base = _slugify(path.stem)[:60]
-    txt_path = RAW_DIR / f"{base}.txt"
-    meta_path = RAW_DIR / f"{base}.meta.json"
-    txt_path.write_text(text)
-    meta_path.write_text(json.dumps(meta, indent=2))
-    click.echo(f"Wrote {len(text):,} chars to {txt_path}")
-    if meta.get("fireflies_naming"):
-        click.echo(f"Detected Fireflies naming: {meta['fireflies_naming']}")
-    click.echo(f"Meta:  {meta_path}")
-    click.echo("\n--- first 500 chars ---")
-    click.echo(text[:500])
+    slug, kind = _meeting_slug_and_kind(meta, path, captured_date)
+    out = _save_raw_text(client, slug, kind, text)
+    click.echo(f"Wrote {len(text):,} chars → {out.relative_to(REPO_ROOT)}")
+    click.echo(f"slug={slug}  kind={kind}  client={client}")
+    if not meta.get("fireflies_naming"):
+        click.secho(
+            "  warning: filename did not match Fireflies pattern; defaulted kind=transcript",
+            fg="yellow",
+            err=True,
+        )
+    click.echo("\n--- first 400 chars ---")
+    click.echo(text[:400])
 
 
 @cli.command(name="extract-local")
@@ -376,20 +413,30 @@ def pull_local(path: Path) -> None:
     help="ISO date when the call happened. Defaults to file's mtime or Fireflies filename.",
 )
 def extract_local(path: Path, client: str, captured_date: str | None) -> None:
-    """Local-file equivalent of `extract`. No Drive needed."""
+    """Local-file equivalent of `extract`. No Drive needed.
+
+    Saves raw text to raw/firefly/<client>/<slug>-<kind>.txt (so the chatbot
+    can find it) AND runs Claude extraction → processed/commitments/<client>/.
+    """
     text, meta = _pull_local(path)
-    cap_date = (
-        captured_date
-        or (meta.get("fireflies_naming") or {}).get("captured_date")
-        or meta.get("modifiedTime", "")[:10]
-        or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    )
+    slug, kind = _meeting_slug_and_kind(meta, path, captured_date)
+    cap_date = slug.split("-", 3)
+    cap_date = "-".join(cap_date[:3]) if len(cap_date) >= 3 else captured_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    raw_out = _save_raw_text(client, slug, kind, text)
+    click.echo(f"Saved raw text → {raw_out.relative_to(REPO_ROOT)}")
+    if kind == "summary":
+        click.secho(
+            "  warning: this is a Fireflies summary, not the transcript. Saving to raw/ anyway, "
+            "but the extractor wants a transcript. Run extract-local on the matching -transcript- file.",
+            fg="yellow",
+            err=True,
+        )
     _run_extraction(
         text=text,
         client=client,
         captured_date=cap_date,
         source_id=meta["id"],
-        display_name=meta["name"],
+        display_name=slug,
     )
 
 
@@ -470,54 +517,6 @@ def _run_extraction(
     click.echo(f"Extracted {n_items} item(s). → {out_path}")
     click.echo(f"Index updated:           {index_path}")
     click.echo(f"\nUsage: in {resp.usage.input_tokens} / out {resp.usage.output_tokens}")
-
-
-@cli.command()
-@click.argument("question")
-@click.option("--client", required=True, help="Client slug to query.")
-@click.option("--limit", default=200, help="Max index rows to load into context.")
-def query(question: str, client: str, limit: int) -> None:
-    """Answer a question by reading the local commitment index."""
-    index_path = PROCESSED_DIR / client / "_index.jsonl"
-    if not index_path.exists():
-        raise click.ClickException(
-            f"No index for client '{client}' at {index_path}. Run `extract` first."
-        )
-    rows: list[dict[str, Any]] = []
-    with index_path.open() as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    if len(rows) > limit:
-        rows = sorted(rows, key=lambda r: r.get("captured_date", ""), reverse=True)[:limit]
-
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    system_prompt = (
-        "You answer questions about marketing-ops commitments tracked across client calls.\n"
-        f"Today's date: {today}.\n"
-        "You are given a JSONL index of items extracted from call transcripts.\n"
-        "Each item has type, due_date, owner, owner_role, priority, status, tags, and a source path.\n\n"
-        "Rules:\n"
-        "- Only answer from the index. If the answer isn't there, say so plainly.\n"
-        "- Cite each item's id and source_path so the human can verify.\n"
-        "- Sort by due_date when listing deliverables.\n"
-        "- 'Things we owe them' = owner_role: augurian. 'Things they owe us' = client.\n"
-    )
-    user_prompt = (
-        f"Question: {question}\n\nIndex ({len(rows)} rows):\n"
-        + "\n".join(json.dumps(r) for r in rows)
-    )
-    client_anthropic = _anthropic()
-    resp = client_anthropic.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=2048,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-    answer = "".join(b.text for b in resp.content if b.type == "text")
-    click.echo(answer)
-    click.echo(f"\n--- in {resp.usage.input_tokens} / out {resp.usage.output_tokens} tokens ---")
 
 
 # ---------- Helpers ----------
