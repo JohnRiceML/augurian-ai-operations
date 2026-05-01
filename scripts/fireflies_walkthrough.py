@@ -337,6 +337,35 @@ _FIREFLIES_RE = re.compile(
     r"(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z)\.pdf$"
 )
 
+# Corruption signatures spotted in Fireflies output (verified 2026-05-01).
+# When any of these patterns appear, the extractor should lower confidence
+# for nearby items and tag them `corruption-near`.
+_CORRUPTION_PATTERNS = [
+    # "John Rice — 03w.oAditi" — junk between speaker line and timestamp.
+    (re.compile(r"\b\d{1,2}[a-z]\.[a-z]"), "garbled timestamp glitch"),
+    # Speaker line with no minute/second separator: "John Rice—0345"
+    (re.compile(r"[A-Z][a-z]+\s+[A-Z][a-z]+\s*[—-]\s*\d{4}\b"), "missing colon in MM:SS"),
+    # Impossible timestamps: MM > 90 (real meetings get truncated by Fireflies anyway).
+    (re.compile(r"\b(?:9[0-9]|[1-9]\d{2}):\d{2}\b"), "impossible MM (>89) in timestamp"),
+]
+
+
+def detect_corruption(text: str) -> list[dict[str, str]]:
+    """Scan transcript text for known Fireflies output-corruption signatures."""
+    findings: list[dict[str, str]] = []
+    for pat, label in _CORRUPTION_PATTERNS:
+        for m in pat.finditer(text):
+            ctx_start = max(0, m.start() - 40)
+            ctx_end = min(len(text), m.end() + 40)
+            findings.append(
+                {
+                    "label": label,
+                    "match": m.group(0),
+                    "context": text[ctx_start:ctx_end].replace("\n", " "),
+                }
+            )
+    return findings
+
 
 def _parse_fireflies_filename(name: str) -> dict[str, str] | None:
     m = _FIREFLIES_RE.match(name)
@@ -400,6 +429,17 @@ def pull_local(path: Path, client: str, captured_date: str | None) -> None:
             fg="yellow",
             err=True,
         )
+    findings = detect_corruption(text)
+    if findings:
+        click.secho(
+            f"\n  ⚠ corruption: {len(findings)} suspicious pattern(s) in this PDF",
+            fg="yellow",
+            err=True,
+        )
+        for f in findings[:5]:
+            click.secho(f"    [{f['label']}] '{f['match']}' near: …{f['context']}…", fg="yellow", err=True)
+        if len(findings) > 5:
+            click.secho(f"    (+{len(findings) - 5} more)", fg="yellow", err=True)
     click.echo("\n--- first 400 chars ---")
     click.echo(text[:400])
 
@@ -428,6 +468,13 @@ def extract_local(path: Path, client: str, captured_date: str | None) -> None:
         click.secho(
             "  warning: this is a Fireflies summary, not the transcript. Saving to raw/ anyway, "
             "but the extractor wants a transcript. Run extract-local on the matching -transcript- file.",
+            fg="yellow",
+            err=True,
+        )
+    findings = detect_corruption(text)
+    if findings:
+        click.secho(
+            f"  ⚠ corruption: {len(findings)} suspicious pattern(s) — extractor will tag affected items 'corruption-near'",
             fg="yellow",
             err=True,
         )

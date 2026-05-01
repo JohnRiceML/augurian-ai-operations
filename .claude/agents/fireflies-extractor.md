@@ -69,11 +69,20 @@ For each transcript, write one JSON file to `/Augurian Clients/[Client]/processe
       "priority": 2,
       "status": "open",
       "tags": ["seo", "q3-planning"],
-      "confidence": "high"
+      "confidence": "high",
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }
 ```
+
+When a commitment in this call **revises** an earlier commitment from a prior call (e.g., "we said May 15, we're now pushing to May 22"), set:
+
+- The new item's `supersedes` to the prior item's `id`.
+- Then, after writing the new file, append an index row that updates the **prior** item's `superseded_by` to point at the new item. (The commitment-tracker filters out superseded items by default — that's how the supersession chain stays clean in queries.)
+
+If you can't find the prior item's id (e.g., it was extracted in a meeting you can't read here), still extract the new item with `supersedes: null` and add a tag `revises-prior` so a human can stitch it later.
 
 ### Field rules
 
@@ -85,27 +94,32 @@ For each transcript, write one JSON file to `/Augurian Clients/[Client]/processe
 - **`verbatim`**: the actual quote that produced this item. ≤150 chars. PII redaction applies.
 - **`transcript_anchor`**: timestamp from the transcript so a human can verify in Fireflies.
 - **`priority`**: 0–3 — 0=passing mention, 1=soft, 2=clearly stated, 3=explicit deadline + owner.
-- **`status`**: `open | done | cancelled` — always start as `open`. The commitment-tracker updates this in the index.
+- **`status`**: `open | done | cancelled | superseded` — always start as `open`. The commitment-tracker updates this in the index.
 - **`tags`**: free-form, lowercase, hyphenated. Keep short (1–3 tags). Reused vocabulary preferred over creative new tags.
 - **`confidence`**: `high | medium | low` — your own confidence in the extraction.
+- **`supersedes`**: id of an earlier item this one revises (e.g., a deadline change), or `null`.
+- **`superseded_by`**: id of a later item that revises this one. Always start as `null` — populated by the supersession update flow above.
 
 ## Index update
 
 After writing the per-call file, append one row per item to `/processed/commitments/_index.jsonl`:
 
 ```json
-{"id":"coborns-2026-05-04-001","client":"coborns","type":"deliverable","captured_date":"2026-05-04","due_date":"2026-05-11","owner_role":"augurian","priority":2,"status":"open","source_path":"processed/commitments/2026-05-04-coborns-monthly-review.json","tags":["seo","q3-planning"]}
+{"id":"coborns-2026-05-04-001","client":"coborns","type":"deliverable","captured_date":"2026-05-04","due_date":"2026-05-11","owner_role":"augurian","priority":2,"status":"open","source_path":"processed/commitments/2026-05-04-coborns-monthly-review.json","tags":["seo","q3-planning"],"supersedes":null,"superseded_by":null}
 ```
 
-This index is what `commitment-tracker` reads to answer queries fast. Append-only — never rewrite.
+The index is append-only. To mark a prior item superseded, append a NEW row with the same `id` and updated `status`/`superseded_by` fields — the commitment-tracker uses the latest row per id when resolving status. (This keeps the audit trail intact without rewrite.)
 
 ## Hard rules
 
+1. **Validate summary timestamps against the transcript.** Fireflies' summary action items include MM:SS anchors (e.g., "(21:05)") that are NOT always derived from the actual transcript — they can point to positions that don't exist in a 7-minute call. Verified 2026-05-01. Before trusting any anchor pulled from the summary, check it against the transcript's max duration. If invalid, derive the anchor from the transcript yourself by finding the speaker turn that contains the verbatim quote.
+1. **Verbatim cascade.** The summary uses third-person paraphrase ("John commits to…") which CANNOT satisfy the verbatim ≤150-char rule. If verbatim is required, you MUST read the transcript. If the user only needs a paraphrase summary (theme questions, "what was discussed"), the summary alone is acceptable — set `confidence: medium` and prefix `verbatim` with `[paraphrase]` so downstream consumers know it's not a true quote.
+1. **Detect and flag transcript corruption.** Garbled lines like `John Rice — 03w.oAditi, that work?` or impossible timestamps (MM > 60) indicate Fireflies output corruption. When you spot this, lower `confidence` for any item near the corrupted region and add the tag `corruption-near`.
 1. **Never modify the raw transcript.** It's the audit-of-record.
-2. **Never over-extract.** A clean miss beats a false commitment that the team has to track down.
-3. **Always anchor to a timestamp.** No `transcript_anchor` = no extraction. Verifiability is the whole point.
-4. **Always run PII redaction** on `verbatim` and `owner` before writing. The audit hook handles this; don't skip.
-5. **Never AI-generate content** in the deliverable_text — quote and summarize what was said. The system fails if `deliverable_text` says something the call didn't.
+1. **Never over-extract.** A clean miss beats a false commitment that the team has to track down.
+1. **Always anchor to a timestamp.** No `transcript_anchor` = no extraction. Verifiability is the whole point.
+1. **Always run PII redaction** on `verbatim` and `owner` before writing. The audit hook handles this; don't skip.
+1. **Never AI-generate content** in the deliverable_text — quote and summarize what was said. The system fails if `deliverable_text` says something the call didn't.
 
 ## Voice
 

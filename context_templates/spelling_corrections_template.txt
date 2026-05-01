@@ -3,6 +3,17 @@
 # Format: <as_transcribed>\t<corrected>
 # One per line. Lines starting with # are comments.
 #
+# This file is used for two related-but-distinct fixes:
+#   1) Mistranscriptions (Fireflies misheard a word):
+#         Aquarian      Augurian
+#         Optmyzer      Optmyzr
+#   2) Name normalization (same person heard two ways):
+#         Sarah         Sara
+#         Sara Lindgren Sara
+#   The format is the same; the rule is "always rewrite LEFT to RIGHT in the
+#   raw text before the agent reads it." Use a comment to mark intent if
+#   it's not obvious from context.
+#
 # Why this exists: Fireflies' transcription is rough on uncommon proper nouns.
 # Verified during the first walkthrough (2026-04-30 test meeting):
 #   - "Augurian" → mistranscribed as both "Aquarian" and "agrarian"

@@ -68,8 +68,12 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "status": {
                     "type": "string",
-                    "enum": ["open", "done", "cancelled"],
-                    "description": "Defaults to 'open' if omitted.",
+                    "enum": ["open", "done", "cancelled", "superseded", "any"],
+                    "description": (
+                        "Defaults to 'open' if omitted. Superseded items "
+                        "(commitments revised by a later call) are excluded "
+                        "by default — pass 'superseded' or 'any' to see them."
+                    ),
                 },
                 "due_before": {"type": "string", "description": "ISO YYYY-MM-DD"},
                 "due_after": {"type": "string", "description": "ISO YYYY-MM-DD"},
@@ -159,10 +163,28 @@ TOOLS: list[dict[str, Any]] = [
 # ----------------------------- Tool implementations -----------------------------
 
 def _read_index(client: str) -> list[dict[str, Any]]:
+    """Read the per-client commitment index.
+
+    The file is append-only: a single item id may appear multiple times if
+    later runs updated its status (e.g. status=open → superseded). The
+    LATEST row per id wins. This preserves the full audit trail on disk
+    while giving callers one logical record per commitment.
+    """
     p = PROCESSED_DIR / client / "_index.jsonl"
     if not p.exists():
         return []
-    return [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
+    by_id: dict[str, dict[str, Any]] = {}
+    fallback: list[dict[str, Any]] = []
+    for line in p.read_text().splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        rid = row.get("id")
+        if rid:
+            by_id[rid] = row  # later writes override earlier ones
+        else:
+            fallback.append(row)
+    return list(by_id.values()) + fallback
 
 
 def tool_query_commitments(args: dict[str, Any]) -> dict[str, Any]:
@@ -186,11 +208,17 @@ def tool_query_commitments(args: dict[str, Any]) -> dict[str, Any]:
     limit = args.get("limit", 10)
 
     def keep(r: dict[str, Any]) -> bool:
+        item_status = r.get("status") or "open"
+        # Superseded items are hidden by default (commitments later revised).
+        if status_f == "any":
+            pass  # accept all statuses
+        elif status_f and item_status != status_f:
+            return False
+        elif not status_f and item_status == "superseded":
+            return False
         if type_f and r.get("type") != type_f:
             return False
         if role_f and r.get("owner_role") != role_f:
-            return False
-        if status_f and (r.get("status") or "open") != status_f:
             return False
         if due_before and (r.get("due_date") or "9999-99-99") > due_before:
             return False
