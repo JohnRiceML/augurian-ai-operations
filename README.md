@@ -41,6 +41,23 @@ Every conversation Augurian has on a client call is captured by Fireflies. Most 
 
 ---
 
+## ⚡ Use it today — no setup, no code
+
+The diagram above is the production target. Until the orchestrator is wired end-to-end, an account lead can get **most** of the value right now by pasting one of four prompts into a fresh Claude.ai chat with Drive integration enabled. Same agent rules, same calibration, same drafter pattern as the production path — running through Anthropic's hosted Drive integration instead of through our orchestrator. Validated against 8 mock client meetings on 2026-05-01.
+
+| Skill | Use when… | Output |
+|---|---|---|
+| [`01_extract_one_meeting`](./claude_ai_skills/01_extract_one_meeting.md) | You just had a client call and want structured commitments. | One JSON object matching the production schema. |
+| [`02_query_meetings`](./claude_ai_skills/02_query_meetings.md) | You need an answer across many meetings ("what's overdue with Coborn's?", "what did we decide about the Pinterest pilot?"). | Cited markdown answer with transcript anchors. |
+| [`03_draft_status_report`](./claude_ai_skills/03_draft_status_report.md) | You're prepping a status meeting and want a one-pager covering a date range. | Markdown status report — drafter pattern, human review required before sending. |
+| [`04_audit_transcript`](./claude_ai_skills/04_audit_transcript.md) | A transcript "looks weird" and you want a sanity check before letting it feed downstream automation. | Mistranscription + corruption findings + summary/transcript mismatches. |
+
+Open a new Claude.ai chat → paste the skill → add your input (meeting title, client name, question, date range) → send. For repeat use, save the prompt as a Claude.ai Project's custom instructions. Setup notes + the prereq (Claude.ai Drive integration enabled) are in [`claude_ai_skills/README.md`](./claude_ai_skills/README.md).
+
+> The skills are the same agent reasoning that runs in `scripts/ask.py` and (eventually) the production orchestrator. As the orchestrator comes online, the skills become a fallback — the production path will route through Slack with audit + notion logging, but the skills stay useful for ad-hoc work.
+
+---
+
 ## What is this, in plain English
 
 A safe AI assistant for Augurian's team. It reads each client's data, drafts the work, and hands the draft to a human at Augurian. The human edits and decides what the client sees. **The AI never reaches the client directly.**
