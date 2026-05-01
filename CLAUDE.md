@@ -35,6 +35,14 @@ The architecture and tool choices are **already decided** — see `docs/IMPLEMEN
 - Don't AI-generate the `/context/` files. They're the human-judgment input that makes the system work.
 - Don't add features beyond what the current task requires. The playbook is conservative for a reason.
 
+## Rollout constraints (from Micah, 2026-05-01)
+
+These are binding for Q2 work. They came out of the lead engineer's review and are captured durably in memory + `docs/`:
+
+- **No client exposure without a green pre-rollout check.** Run `scripts/readiness_check.py --client <slug>` before adding any client to the pilot. Exits non-zero if any pillar fails.
+- **Centralized bot in Cloud Run is production. Distributed Claude.ai (paste-ready skills in `claude_ai_skills/`) is today's ad-hoc fallback.** Both coexist; the bot is what scales for shared connections (Drive, GA4, Slack).
+- **No "production-on-a-laptop" without an ADR.** Cloud Run is the default deployment target. Laptop / Mac mini are staging only. The migration is a deploy step (env vars from Secret Manager), not a code rewrite.
+
 ## Helpful agents
 
 `.claude/agents/` contains both:
