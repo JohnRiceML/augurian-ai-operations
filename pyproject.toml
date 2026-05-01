@@ -26,8 +26,9 @@ dependencies = [
     # Slack
     "slack-sdk>=3.33.0",
 
-    # Audio transcription (Firefly normalizer)
-    "openai>=1.50.0",
+    # PDF parsing — Fireflies exports transcripts + summaries as PDFs.
+    # (No Whisper / OpenAI dep: Fireflies' own transcript is what we use.)
+    "pypdf>=5.0.0",
 
     # Data wrangling
     "pandas>=2.2.0",

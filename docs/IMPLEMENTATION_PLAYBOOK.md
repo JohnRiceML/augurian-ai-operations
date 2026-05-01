@@ -137,14 +137,16 @@ Same shape: service account, enable the API, add the service account as a user o
 
 ### Manual dump pipeline (Firefly, email, onboarding) — Drive watcher + normalizer
 
-**What it is.** A Python script (or Cloud Run service) that watches `/raw/firefly/`, `/raw/email/`, `/raw/onboarding/` for new files. When a file appears, it normalizes (strips PII, transcribes audio, converts to CSV/JSON) and writes the cleaned version to `/processed/`.
+**What it is.** A Python script (or Cloud Run service) that watches `/raw/firefly/`, `/raw/email/`, `/raw/onboarding/` for new files. When a file appears, it normalizes (extracts text from PDFs, strips PII, converts to JSON) and writes the cleaned version to `/processed/`.
 
 **Setup:**
 
 1. Use the Drive API's `changes.list` endpoint with a watch token to detect new files. *(half a day)*
-2. For Firefly audio files specifically: use OpenAI Whisper API or Google Speech-to-Text for transcription. Whisper is cheaper and better for messy audio; ~$0.006/minute. *(half a day)*
+2. For Fireflies transcript PDFs: use `pypdf` to extract plain text. Fireflies exports a `<title>-transcript-<ts>.pdf` (raw transcript) and a `<title>-summary-<ts>.pdf` (their own pre-extracted action items). We use the transcript as the input to the extractor and keep the summary as a baseline check. *(few hours)*
 3. PII stripping: a regex pass for phone numbers, names from a redaction list, email addresses. *(half a day)*
-4. Output normalized JSON/CSV to `/processed/[source]/`. *(part of the same script)*
+4. Output normalized JSON to `/processed/[source]/`. *(part of the same script)*
+
+> **Correction (2026-04-30):** Earlier drafts of this playbook called for OpenAI Whisper to transcribe Fireflies audio. Verified during the first walkthrough that Fireflies already exports a clean PDF transcript directly to Drive; Whisper is dead weight for this path and has been removed. If non-Fireflies audio ever needs transcription, reintroduce it in scope at that time.
 
 **Gotcha.** Drive's changes API is a polling endpoint, not push. We'll poll every 5 minutes; that's the latency between "file dropped" and "agent can use it." Fine for our use case.
 
@@ -186,7 +188,7 @@ Same shape: service account, enable the API, add the service account as a user o
 | OAuth setup for Drive + Slack + Google Ads          | 1 day          | Front-loaded, done once             |
 | First pull script (GA4)                             | 1–2 days       | Sets the pattern                    |
 | Each additional pull script                         | 0.5 day        | Mostly copy-paste                   |
-| Firefly normalizer (with Whisper transcription)     | 2–3 days       | The most code in the project        |
+| Fireflies normalizer (PDF text extract, no Whisper) | 1 day          | Simpler than originally scoped      |
 | Orchestrator + first subagent end-to-end            | 1–2 weeks      | Real iteration here                 |
 | `/context/` files                                   | 2 hours/client | The single highest-leverage hour    |
 | Audit hooks                                         | 1 day          | Don't skip                          |

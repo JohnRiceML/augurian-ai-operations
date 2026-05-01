@@ -25,7 +25,7 @@ You scan changesets for accidentally-committed secrets. You're cheap and fast â€
 | `ya29\.[A-Za-z0-9_\-]+` | Google OAuth Token |
 | `[A-Za-z0-9+/]{40,}={0,2}` near the words "private_key" | Service-account private key fragment |
 | Lines containing `BEGIN RSA PRIVATE KEY` or `BEGIN PRIVATE KEY` | RSA / PKCS8 key |
-| `sk-[A-Za-z0-9]{48}` | OpenAI API key (Whisper) |
+| `sk-[A-Za-z0-9]{48}` | OpenAI API key (legacy â€” Whisper was dropped, but keep the regex for any future OpenAI use) |
 
 ### High-confidence near-misses (flag, don't block)
 

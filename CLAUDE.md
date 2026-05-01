@@ -14,7 +14,7 @@ The architecture and tool choices are **already decided** — see `docs/IMPLEMEN
 - Drive: **Google's first-party Drive MCP server**. OAuth consent screen audience MUST be `Internal` — `External + Testing` gives a 7-day refresh-token expiry that silently breaks the agent.
 - Slack: production uses `@modelcontextprotocol/server-slack` with a manually-created Bot Token (Dynamic Client Registration is unreliable headless).
 - Pullers: standalone Python scripts on Cloud Run + Cloud Scheduler. **Do not build a generic puller framework.** Copy `ga4_puller.py` for each new source — three scripts is easier to maintain than one over-engineered one.
-- Manual dumps: Drive `changes.list` polling every 5 min. Whisper API for Firefly audio (~$0.006/min).
+- Manual dumps: Drive `changes.list` polling every 5 min. **No Whisper.** Fireflies exports its own PDF transcript (and a summary PDF) directly to Drive — re-transcribing the audio is dead weight. Use `pypdf` to extract text from the transcript PDF.
 - Context files: hand-written markdown by account leads. **Never AI-generate them** — that defeats the point. Loaded via prompt caching.
 - Audit logging: Agent SDK hooks → per-client `/audit/YYYY-MM-DD.jsonl`. Truncate inputs/outputs to 500 chars; keep full logs only 7 days.
 

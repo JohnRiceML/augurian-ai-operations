@@ -4,8 +4,10 @@ Polls the Drive `changes.list` endpoint every 5 minutes for new files in
 each client's /raw/firefly/, /raw/email/, and /raw/onboarding/ folders.
 When a new file appears:
 
- - Firefly audio (.mp3, .m4a, .wav): transcribe with OpenAI Whisper API
-   (~$0.006/min, cheaper and better than Google STT for messy audio).
+ - Fireflies transcript (.pdf, named "<title>-transcript-<ts>.pdf"):
+   extract text via pypdf. Fireflies' own transcript is what we use — no
+   Whisper re-transcription. The matching "-summary-" PDF is parsed
+   separately as a baseline check (Fireflies' own action items).
  - Email (.eml, .msg, forwarded HTML): parse, strip headers, extract body.
  - Onboarding (.pdf, .docx): extract text, preserve section structure.
 
@@ -15,9 +17,10 @@ After normalization:
  - Leave the raw file in /raw/<source>/ untouched (audit trail).
 
 Status: SKELETON for Phase 3+. The pattern is well-documented in the
-playbook (~2-3 days of work for a single engineer). Implementing it
-fully here would be premature — the changes.list watch token + Whisper
-client + per-format parsing is meaningful code we want reviewed when it's
+playbook (~1 day of work for a single engineer, simpler than originally
+scoped now that Whisper is out). Implementing it fully here would be
+premature — the changes.list watch token + pypdf extraction +
+per-format parsing is meaningful code we want reviewed when it's
 written, not now.
 
 Run as a long-running Cloud Run service:
@@ -45,10 +48,12 @@ def poll_once() -> None:
 
     1. For each client, page through Drive's changes.list since last token.
     2. For each new file, dispatch to the right normalizer:
-       - .mp3/.m4a/.wav under /raw/firefly/ → Whisper transcribe → write
-         /raw/firefly/<call>-transcript.json (raw) AND trigger the
-         `fireflies-extractor` subagent to produce structured records under
-         /processed/commitments/<client>/.
+       - "<title>-transcript-<ts>.pdf" under /raw/firefly/ → pypdf extract →
+         trigger the `fireflies-extractor` subagent to produce structured
+         records under /processed/commitments/<client>/.
+       - "<title>-summary-<ts>.pdf" under /raw/firefly/ → pypdf extract,
+         store alongside as Fireflies' own pre-extracted action items
+         (used as a baseline / sanity check on Claude's extraction).
        - .eml/.msg under /raw/email/ → parse + strip signatures + redact
          PII → /processed/email/. If a commitment is mentioned, also
          routes to the email-commitment extractor (Phase 4+).
@@ -59,10 +64,11 @@ def poll_once() -> None:
     4. Persist the new changes-list page token.
 
     Note: triggering the orchestrator's `extract-call` task per new transcript
-    is the bridge from raw audio → structured commitments. The orchestrator
-    handles auth + agent invocation; this watcher only detects + dispatches.
+    is the bridge from raw transcript → structured commitments. The
+    orchestrator handles auth + agent invocation; this watcher only detects
+    + dispatches.
 
-    TODO Phase 3: implement detection + Whisper transcription.
+    TODO Phase 3: implement Drive changes.list polling + PDF text extraction.
     TODO Phase 3+: wire extract-call dispatch.
     """
     log.warning("not_implemented", message="drive_watcher is a Phase 3 deliverable.")

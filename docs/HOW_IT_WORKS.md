@@ -163,7 +163,6 @@ sequenceDiagram
     participant Sarah as Account lead
     participant FF as Fireflies
     participant Watch as Drive watcher
-    participant Whisper
     participant FE as fireflies-extractor
     participant Drive as Drive warehouse
     participant Augur as commitment-tracker
@@ -171,14 +170,12 @@ sequenceDiagram
 
     Note over Sarah,FF: Tuesday: Sarah and the Coborn's<br/>team have a status call
     Sarah->>FF: Recording captured
-    FF->>Drive: Audio dropped to /raw/firefly/
+    Note over FF: Fireflies records and<br/>transcribes natively
+    FF->>Drive: PDF transcript + summary dropped to /raw/firefly/
 
     Note over Watch: 5-min poll loop
-    Watch->>Drive: Detects new file
-    Watch->>Whisper: Transcribe audio
-    Whisper-->>Watch: Text + speaker labels + timestamps
-    Watch->>Drive: Save transcript to /raw/firefly/
-
+    Watch->>Drive: Detects new transcript PDF
+    Watch->>Watch: pypdf → plain text
     Watch->>FE: Trigger extraction
     FE->>Drive: Read transcript + client_context.md
     Note over FE: Extracts: deliverables,<br/>action items, decisions,<br/>blockers — with anchors

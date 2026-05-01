@@ -19,7 +19,7 @@ The split matters: API pulls are deterministic and cheap; manual dumps are messy
 The piece that didn't exist on the whiteboard. Three pipelines, one per source type:
 
 - **`pipelines/<source>_puller.py`** — service-account auth, hits the API, writes timestamped CSV/JSON to `/raw/<source>/`. Run on a Cloud Run job triggered daily by Cloud Scheduler.
-- **`pipelines/drive_watcher.py`** — polls Drive's `changes.list` every 5 min for new files in `/raw/firefly/`, `/raw/email/`, `/raw/onboarding/`. Transcribes audio (Whisper), strips PII, normalizes schema, writes to `/processed/<source>/`.
+- **`pipelines/drive_watcher.py`** — polls Drive's `changes.list` every 5 min for new files in `/raw/firefly/`, `/raw/email/`, `/raw/onboarding/`. Extracts transcript text from Fireflies' PDF (`pypdf`), strips PII, normalizes schema, writes to `/processed/<source>/`. (No Whisper — Fireflies exports its own transcript.)
 - **`/context/*.md`** — hand-written. No automation; quarterly review.
 
 ## Layer 3 — Warehouse (Google Drive)

@@ -21,7 +21,7 @@ These block week 1 if they're not nailed down. See `README.md` → "Decisions th
 - [ ] Google Cloud project created — name `augurian-ai-ops`. Billing account attached. Owner = `ai-ops@augurian.com`.
 - [ ] Slack app created at `api.slack.com/apps`. Bot username "Augur". Bot Token Scopes: `channels:history`, `channels:read`, `chat:write`, `search:read`, `users:read`.
 - [ ] Slack app installed to the Augurian workspace. Bot User OAuth Token (`xoxb-...`) saved to 1Password.
-- [ ] OpenAI API key created (for Whisper). Stored in 1Password.
+- [ ] ~~OpenAI API key created (for Whisper).~~ **Removed 2026-04-30** — Fireflies exports its own transcript PDF; no Whisper needed.
 
 ## Google Cloud setup
 

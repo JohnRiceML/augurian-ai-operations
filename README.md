@@ -23,13 +23,12 @@ Every conversation Augurian has on a client call is captured by Fireflies. Most 
 <div align="center">
 
 <a href="docs/images/fireflies-flow-hero.svg">
-  <img src="docs/images/fireflies-flow-hero.svg" alt="How a Fireflies call becomes a verified answer in Slack: Fireflies records → Whisper transcribes → Drive stores → Claude extracts → Drive indexes → Slack answers, with human review at the end." width="100%"/>
+  <img src="docs/images/fireflies-flow-hero.svg" alt="How a Fireflies call becomes a verified answer in Slack: Fireflies records and transcribes → Drive stores → Claude extracts → Drive indexes → Slack answers, with human review at the end." width="100%"/>
 </a>
 
 </div>
 
-[![Fireflies.ai](https://img.shields.io/badge/Fireflies.ai-records-F35F73?style=for-the-badge)](https://fireflies.ai)
-[![OpenAI Whisper](https://img.shields.io/badge/Whisper-transcribes-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/research/whisper)
+[![Fireflies.ai](https://img.shields.io/badge/Fireflies.ai-records%20%2B%20transcribes-F35F73?style=for-the-badge)](https://fireflies.ai)
 [![Google Drive](https://img.shields.io/badge/Google%20Drive-stores-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com)
 [![Claude](https://img.shields.io/badge/Claude-extracts-D4A27F?style=for-the-badge&logo=anthropic&logoColor=white)](https://www.anthropic.com)
 [![Drive Index](https://img.shields.io/badge/Drive-indexes-1A73E8?style=for-the-badge&logo=googledrive&logoColor=white)](#)
@@ -79,7 +78,6 @@ The orange boxes are humans. The green box is the client. Everything between is 
 [![Google Ads](https://img.shields.io/badge/Google%20Ads-API-4285F4?logo=googleads&logoColor=white)](https://ads.google.com)
 [![Optmyzr](https://img.shields.io/badge/Optmyzr-API-FF6B35)](https://optmyzr.com)
 [![Fireflies.ai](https://img.shields.io/badge/Fireflies.ai-transcripts-F35F73)](https://fireflies.ai)
-[![OpenAI Whisper](https://img.shields.io/badge/OpenAI-Whisper-412991?logo=openai&logoColor=white)](https://openai.com/research/whisper)
 [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-deploy-4285F4?logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org)
 
@@ -196,7 +194,7 @@ flowchart TB
 
     subgraph S2["Layer 2 — Ingestion pipelines"]
         PULL[Cloud Scheduler<br/>+ Python pullers]
-        WATCH[Drive watcher<br/>+ Whisper + redaction]
+        WATCH[Drive watcher<br/>+ PDF extract + redaction]
     end
 
     subgraph S3["Layer 3 — Drive warehouse (per client)"]
