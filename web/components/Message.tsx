@@ -31,6 +31,13 @@ const CITATION_SENTINEL_RE = /\[\[CIT:(\d+)\]\]/g;
 // the citation pre-pass; both sentinel families coexist.
 const WIDGET_SENTINEL_RE = /\[\[WIDGET:(\d+)\]\]/g;
 
+// Sentinel appended to streaming content so the renderer can place a
+// blinking cursor at the END of the last paragraph rather than on a
+// fresh row below it. Safe because no real content uses the literal
+// triple-bracket form.
+const CURSOR_SENTINEL = "[[CURSOR]]";
+const CURSOR_SENTINEL_RE = /\[\[CURSOR\]\]/g;
+
 interface CitationPillProps {
   citation: Citation;
   onClick?: (c: Citation) => void;
@@ -127,6 +134,59 @@ function renderWithCitations(
       // Only re-clone if children would actually differ.
       if (walked === kids) return el;
       // Cast through unknown to keep TS happy across React's prop variance.
+      const Cloned = el.type as React.ElementType;
+      const newProps = { ...(el.props as Record<string, unknown>), children: walked };
+      return <Cloned {...newProps} />;
+    }
+    return node;
+  };
+
+  return walk(children, "root");
+}
+
+/**
+ * Walk a ReactNode tree and replace `[[CURSOR]]` text occurrences with
+ * an inline blinking cursor element. We don't bother bailing on
+ * code/links — the sentinel is only injected at the end of streaming
+ * markdown, and no realistic streaming content places a literal
+ * `[[CURSOR]]` token inside an `<a>` or `<code>`.
+ */
+function renderWithCursor(children: ReactNode): ReactNode {
+  const replaceString = (s: string, keyPrefix: string): ReactNode => {
+    if (!CURSOR_SENTINEL_RE.test(s)) {
+      CURSOR_SENTINEL_RE.lastIndex = 0;
+      return s;
+    }
+    CURSOR_SENTINEL_RE.lastIndex = 0;
+    const parts: ReactNode[] = [];
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = CURSOR_SENTINEL_RE.exec(s)) !== null) {
+      if (m.index > last) parts.push(s.slice(last, m.index));
+      parts.push(<StreamingCursor key={`${keyPrefix}-cur-${i}`} />);
+      last = m.index + m[0].length;
+      i++;
+    }
+    if (last < s.length) parts.push(s.slice(last));
+    return <>{parts}</>;
+  };
+
+  const walk = (node: ReactNode, keyPrefix: string): ReactNode => {
+    if (typeof node === "string") return replaceString(node, keyPrefix);
+    if (Array.isArray(node)) {
+      return node.map((n, i) => (
+        <span key={`${keyPrefix}-${i}`} style={{ display: "contents" }}>
+          {walk(n, `${keyPrefix}-${i}`)}
+        </span>
+      ));
+    }
+    if (isValidElement(node)) {
+      const el = node as React.ReactElement<{ children?: ReactNode }>;
+      const kids = el.props?.children;
+      if (kids == null) return el;
+      const walked = walk(kids, `${keyPrefix}-c`);
+      if (walked === kids) return el;
       const Cloned = el.type as React.ElementType;
       const newProps = { ...(el.props as Record<string, unknown>), children: walked };
       return <Cloned {...newProps} />;
@@ -312,6 +372,64 @@ const MD_COMPONENTS = {
   td: (props: any) => <td className="py-1.5 pr-4 align-top" {...props} />,
 };
 
+/**
+ * Three bouncing dots placed on a single baseline. Each dot phases its
+ * opacity 0.3 → 1 → 0.3 with a 200ms offset from its neighbor — the
+ * classic chat-app "agent is thinking" affordance, in muted slate so it
+ * doesn't compete with the content that's about to land on top of it.
+ */
+function ThinkingDots() {
+  return (
+    <div
+      className="flex items-center gap-1.5 text-muted dark:text-muted-dark"
+      aria-label="Agent is thinking"
+      role="status"
+    >
+      <span className="text-[14px]">Thinking</span>
+      <span className="inline-flex items-center gap-[3px]" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="inline-block h-[4px] w-[4px] rounded-full"
+            style={{ background: "currentColor" }}
+            animate={{ opacity: [0.3, 1, 0.3] }}
+            transition={{
+              duration: 1.0,
+              ease: "easeInOut",
+              repeat: Infinity,
+              delay: i * 0.2,
+            }}
+          />
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Thin 1px-wide caret that follows the last streamed character. We use
+ * an inline-block span so it sits on the text baseline of whatever
+ * trailing inline element the markdown renderer produced, rather than
+ * a block — that way it shows up at the end of the last line, not on a
+ * fresh row below it.
+ */
+function StreamingCursor() {
+  return (
+    <motion.span
+      aria-hidden="true"
+      className="ml-[1px] inline-block align-text-bottom"
+      style={{
+        width: "1px",
+        height: "1em",
+        background: "var(--ink)",
+        verticalAlign: "-0.1em",
+      }}
+      animate={{ opacity: [1, 0, 1] }}
+      transition={{ duration: 1.0, ease: "easeInOut", repeat: Infinity }}
+    />
+  );
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -392,15 +510,23 @@ export function Message({ message, onCitationClick }: MessageProps) {
 
   // Assistant
   const hasTools = (message.toolCalls?.length ?? 0) > 0;
-  const showShimmer = message.pending && !message.content && !hasTools;
+  // Pre-event placeholder: the SSE stream hasn't delivered any text or
+  // tool_use yet, but we know we're waiting on the agent.
+  const showThinkingDots = message.pending && !message.content && !hasTools;
+  // Cursor caret while text is actively streaming in.
+  const showCursor = message.pending && !!message.content;
   // Two pre-passes: widgets first, then citations. Both leave sentinels in
   // the markdown string that the renderer below swaps for components.
+  // While streaming, we also append a CURSOR sentinel so the blinking
+  // caret renders inline at the end of the most-recent text — handled by
+  // renderWithCursor below.
   const { rewritten, citations, widgets } = useMemo(() => {
     const raw = message.content || "";
     const { widgets: parsed, contentWithSentinels } = parseWidgets(raw);
     const { rewritten, citations } = rewriteCitations(contentWithSentinels);
-    return { rewritten, citations, widgets: parsed.map((w) => w.widget) };
-  }, [message.content]);
+    const withCursor = showCursor ? rewritten + CURSOR_SENTINEL : rewritten;
+    return { rewritten: withCursor, citations, widgets: parsed.map((w) => w.widget) };
+  }, [message.content, showCursor]);
   // Build the components map once per render — the wrap function closes
   // over the current citations + widgets and the click handler.
   const components = useMemo(() => {
@@ -431,7 +557,8 @@ export function Message({ message, onCitationClick }: MessageProps) {
           citations,
           onCitationClick,
         );
-        const wrapped = renderWithWidgets(withCitations, widgets);
+        const withWidgets = renderWithWidgets(withCitations, widgets);
+        const wrapped = renderWithCursor(withWidgets);
         return base
           ? base({ children: wrapped, ...rest })
           : (
@@ -481,12 +608,7 @@ export function Message({ message, onCitationClick }: MessageProps) {
               </div>
             </>
           )}
-          {showShimmer && (
-            <div className="flex items-center gap-2 text-muted dark:text-muted-dark">
-              <span className="h-2 w-2 rounded-full bg-augur-orange animate-shimmer" />
-              <span className="text-[13.5px]">Thinking…</span>
-            </div>
-          )}
+          {showThinkingDots && <ThinkingDots />}
           {message.content && (
             <div className="text-ink dark:text-ink-dark break-words">
               <ReactMarkdown

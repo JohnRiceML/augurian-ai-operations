@@ -169,6 +169,7 @@ function applyEvent(
           name: ev.name,
           args: ev.args,
           status: "running",
+          started_at: new Date().toISOString(),
         };
         return { ...m, toolCalls: [...(m.toolCalls ?? []), newCall] };
       }
@@ -189,6 +190,7 @@ function applyEvent(
               ...c,
               result: ev.result,
               status: (isErr ? "error" : "done") as ToolCall["status"],
+              completed_at: new Date().toISOString(),
             };
           }
           return c;

@@ -11,6 +11,10 @@ export interface ToolCall {
   /** Set once tool_result arrives. */
   result?: unknown;
   status: "running" | "done" | "error";
+  /** ISO timestamp recorded client-side when the tool_use event arrived. */
+  started_at?: string;
+  /** ISO timestamp recorded client-side when the tool_result event arrived. */
+  completed_at?: string;
 }
 
 export interface UsageStats {

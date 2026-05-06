@@ -33,6 +33,55 @@ import { DataTable } from "./charts/DataTable";
 // Shared easing for expand/collapse — Apple-style ease-out cubic bezier.
 const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
+/**
+ * Inline-keyframe spinner ring. Pure SVG so we don't depend on a Tailwind
+ * keyframe — `animate-spin` exists but the dasharray pulse adds a touch
+ * of life that a flat rotation lacks. The keyframes ride on the SVG
+ * `<style>` element scoped per render so multiple spinners don't fight.
+ */
+function SpinnerRing({ size = 12, color }: { size?: number; color: string }) {
+  const stroke = 1.5;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      aria-label="running"
+      role="status"
+      style={{
+        animation: "augur-spinner-rotate 1.2s linear infinite",
+        display: "inline-block",
+      }}
+    >
+      <style>{`
+        @keyframes augur-spinner-rotate {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes augur-spinner-dash {
+          0% { stroke-dasharray: 1, ${c}; stroke-dashoffset: 0; }
+          50% { stroke-dasharray: ${c * 0.55}, ${c}; stroke-dashoffset: -${c * 0.18}; }
+          100% { stroke-dasharray: 1, ${c}; stroke-dashoffset: -${c * 0.99}; }
+        }
+      `}</style>
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        style={{
+          animation: "augur-spinner-dash 1.2s ease-in-out infinite",
+          transformOrigin: "center",
+        }}
+      />
+    </svg>
+  );
+}
+
 function StatusDot({
   status,
   isError,
@@ -43,13 +92,7 @@ function StatusDot({
   tint: string;
 }) {
   if (status === "running") {
-    return (
-      <span
-        aria-label="running"
-        className="inline-block h-1.5 w-1.5 rounded-full animate-shimmer"
-        style={{ background: tint }}
-      />
-    );
+    return <SpinnerRing size={12} color="var(--augur-orange)" />;
   }
   if (isError) {
     return (
@@ -66,6 +109,31 @@ function StatusDot({
       style={{ background: tint }}
     />
   );
+}
+
+/**
+ * Format a millisecond duration into a compact, eye-readable suffix:
+ *   <1s   → "342ms"
+ *   <10s  → "1.4s"
+ *   <60s  → "12s"
+ *   ≥60s  → "1m 12s"
+ */
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+  const total = Math.round(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}m ${s}s`;
+}
+
+function durationFor(call: ToolCall): string | null {
+  if (!call.started_at || !call.completed_at) return null;
+  if (call.status === "running") return null;
+  const ms = Date.parse(call.completed_at) - Date.parse(call.started_at);
+  if (!Number.isFinite(ms) || ms <= 100) return null;
+  return formatDuration(ms);
 }
 
 function Chevron({ open }: { open: boolean }) {
@@ -152,13 +220,32 @@ export function ToolCallCard({ call }: ToolCallCardProps) {
           <ServiceLogo service={service} size={14} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13.5px] font-medium leading-[18px] text-ink">
-            {friendlyLabel}
-          </span>
+          {call.status === "running" ? (
+            <motion.span
+              className="block text-[13.5px] font-medium leading-[18px] text-ink"
+              animate={{ opacity: [0.7, 1, 0.7] }}
+              transition={{ duration: 1.2, ease: "linear", repeat: Infinity }}
+            >
+              {friendlyLabel}
+            </motion.span>
+          ) : (
+            <span className="block text-[13.5px] font-medium leading-[18px] text-ink">
+              {friendlyLabel}
+            </span>
+          )}
           <span className="block text-[11.5px] leading-tight text-muted">
             <code className="font-mono tracking-tight">{call.name}</code>
             <span aria-hidden="true"> · </span>
             <span>{ServiceLabel({ service })}</span>
+            {(() => {
+              const d = durationFor(call);
+              return d ? (
+                <>
+                  <span aria-hidden="true"> · </span>
+                  <span>{d}</span>
+                </>
+              ) : null;
+            })()}
           </span>
         </span>
         {isError && (
