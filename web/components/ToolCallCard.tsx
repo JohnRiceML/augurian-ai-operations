@@ -4,6 +4,11 @@
 // most users don't want to see the JSON, but the option to drill in is
 // the entire reason this UI exists. Card is visually subordinate to the
 // message — narrower padding, lighter background, smaller text.
+//
+// When the tool result matches a known shape (GSC queries, GA4 series,
+// commitments, etc.) we render an inline chart or table instead of the
+// raw JSON; the JSON is still reachable in a collapsed `<details>` for
+// verification.
 
 import { useState } from "react";
 import {
@@ -13,6 +18,15 @@ import {
   SERVICE_PRIMARY,
 } from "./ServiceLogo";
 import type { ToolCall } from "@/lib/types";
+import {
+  planVisualization,
+  type BarVizData,
+  type LineVizData,
+  type TableVizData,
+} from "@/lib/visualization";
+import { BarChart } from "./charts/BarChart";
+import { LineChart } from "./charts/LineChart";
+import { DataTable } from "./charts/DataTable";
 
 function StatusDot({ status }: { status: ToolCall["status"] }) {
   if (status === "running") {
@@ -62,6 +76,10 @@ export function ToolCallCard({ call }: ToolCallCardProps) {
 
   const service = serviceForTool(call.name);
   const tint = SERVICE_PRIMARY[service];
+
+  // Compute the visualization plan once per render. Cheap (it's just a
+  // shape check + slice/sort) so memoization isn't worth the React import.
+  const plan = planVisualization(call.name, call.result);
 
   return (
     <div
@@ -114,9 +132,43 @@ export function ToolCallCard({ call }: ToolCallCardProps) {
             <div className="mb-1 text-[11px] uppercase tracking-wide text-muted dark:text-muted-dark">
               result
             </div>
-            <pre className="overflow-x-auto rounded-md bg-[color:var(--surface)] p-2 font-mono text-[12px] leading-snug border border-[color:var(--border)]">
-              {call.result === undefined ? "…" : previewText(call.result)}
-            </pre>
+            {plan.kind === "none" || call.result === undefined ? (
+              <pre className="overflow-x-auto rounded-md bg-[color:var(--surface)] p-2 font-mono text-[12px] leading-snug border border-[color:var(--border)]">
+                {call.result === undefined ? "…" : previewText(call.result)}
+              </pre>
+            ) : (
+              <div className="rounded-md bg-[color:var(--surface)] p-2 border border-[color:var(--border)]">
+                {plan.kind === "bar" && (
+                  <BarChart
+                    data={(plan.data as BarVizData).bars}
+                    title={plan.title}
+                  />
+                )}
+                {plan.kind === "line" && (
+                  <LineChart
+                    data={(plan.data as LineVizData).points}
+                    title={plan.title}
+                    yLabel={(plan.data as LineVizData).yLabel}
+                  />
+                )}
+                {plan.kind === "table" && (
+                  <DataTable
+                    rows={(plan.data as TableVizData).rows}
+                    columns={(plan.data as TableVizData).columns}
+                  />
+                )}
+                <details className="mt-2">
+                  <summary
+                    className="cursor-pointer text-[11px] uppercase tracking-wide text-muted dark:text-muted-dark"
+                  >
+                    Raw JSON
+                  </summary>
+                  <pre className="overflow-x-auto rounded-md bg-[color:var(--bg)] p-2 mt-1 font-mono text-[12px] leading-snug border border-[color:var(--border)]">
+                    {previewText(call.result)}
+                  </pre>
+                </details>
+              </div>
+            )}
           </div>
         </div>
       )}

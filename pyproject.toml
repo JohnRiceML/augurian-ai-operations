@@ -21,6 +21,7 @@ dependencies = [
     "google-auth>=2.35.0",
     "google-auth-oauthlib>=1.2.0",
     "google-analytics-data>=0.18.0",
+    "google-analytics-admin>=0.22.0",
     "google-ads>=25.0.0",
 
     # Slack

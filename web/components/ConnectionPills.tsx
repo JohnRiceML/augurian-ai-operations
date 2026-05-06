@@ -14,10 +14,22 @@ const SCOPE_LABELS: Record<Service, string> = {
   gsc: "Search Console",
 };
 
-const SCOPE_TOOLTIPS: Record<Service, string> = {
-  drive: "https://www.googleapis.com/auth/drive.readonly",
-  ga4: "https://www.googleapis.com/auth/analytics.readonly",
-  gsc: "https://www.googleapis.com/auth/webmasters.readonly",
+// Human-readable scope name + the OAuth URL it maps to. The pill's
+// title attr stitches these together so hovering surfaces both "what
+// am I allowed to see" and the literal scope string.
+const SCOPE_DETAILS: Record<Service, { name: string; url: string }> = {
+  drive: {
+    name: "Drive (read-only)",
+    url: "https://www.googleapis.com/auth/drive.readonly",
+  },
+  ga4: {
+    name: "Analytics (read-only)",
+    url: "https://www.googleapis.com/auth/analytics.readonly",
+  },
+  gsc: {
+    name: "Search Console (read-only)",
+    url: "https://www.googleapis.com/auth/webmasters.readonly",
+  },
 };
 
 function dotColor(state: StatusResponse["drive"]) {
@@ -56,24 +68,29 @@ export function ConnectionPills() {
   }, []);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       {(["drive", "ga4", "gsc"] as const).map((key) => {
         const state = status?.[key] ?? "not_connected";
-        const dim = state !== "connected";
+        const connected = state === "connected";
+        const scope = SCOPE_DETAILS[key];
+        const stateText = state.replace("_", " ");
         return (
           <span
             key={key}
-            title={`${SCOPE_LABELS[key]} — ${state.replace("_", " ")}\n${SCOPE_TOOLTIPS[key]}`}
-            className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2.5 py-1 text-xs text-muted dark:text-muted-dark"
+            title={`${SCOPE_LABELS[key]} — ${stateText}\nScope: ${scope.name}\n${scope.url}`}
+            className="group inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-[3px] text-[11.5px] text-muted dark:text-muted-dark hover:bg-augur-orange/[0.04] hover:border-augur-orange/30"
+            style={{
+              opacity: connected ? 1 : 0.5,
+              transition:
+                "background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out)",
+            }}
           >
+            <ServiceLogo service={key} size={14} />
+            <span className="font-medium">{SCOPE_LABELS[key]}</span>
             <span
-              className="inline-flex items-center"
-              style={{ opacity: dim ? 0.4 : 1 }}
-            >
-              <ServiceLogo service={key} size={16} />
-            </span>
-            <span className="font-medium ml-1">{SCOPE_LABELS[key]}</span>
-            <span className={`ml-1 h-1.5 w-1.5 rounded-full ${dotColor(state)}`} />
+              className={`h-1.5 w-1.5 rounded-full ${dotColor(state)}`}
+              aria-label={stateText}
+            />
           </span>
         );
       })}

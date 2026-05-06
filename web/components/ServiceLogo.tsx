@@ -13,7 +13,9 @@ export type ToolName =
   | "read_meeting_summary"
   | "read_meeting_transcript"
   | "query_ga4"
-  | "query_gsc";
+  | "query_gsc"
+  | "list_ga4_properties"
+  | "list_gsc_sites";
 
 const TOOL_TO_SERVICE: Record<ToolName, Service> = {
   query_commitments: "drive",
@@ -23,6 +25,8 @@ const TOOL_TO_SERVICE: Record<ToolName, Service> = {
   read_meeting_transcript: "drive",
   query_ga4: "ga4",
   query_gsc: "gsc",
+  list_ga4_properties: "ga4",
+  list_gsc_sites: "gsc",
 };
 
 const SERVICE_LABELS: Record<Service, string> = {

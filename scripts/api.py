@@ -589,3 +589,149 @@ async def chat(req: ChatRequest) -> EventSourceResponse:
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# ----------------------------- Citation source endpoint -----------------------------
+
+
+_PROCESSED_COMMITMENTS_DIR = REPO_ROOT / "data" / "walkthrough" / "processed" / "commitments"
+
+
+def _normalize_anchor(anchor: str) -> list[str]:
+    """Return candidate forms of an anchor for matching against transcript lines.
+
+    JSON anchors are stored as `H:MM:SS` (e.g. "00:02:22"); Fireflies lines
+    are usually `MM:SS` (e.g. "02:22"). We try both forms plus a stripped
+    leading-zero variant. Order is most-specific first.
+    """
+    a = anchor.strip()
+    candidates: list[str] = [a]
+    # H:MM:SS -> MM:SS
+    parts = a.split(":")
+    if len(parts) == 3:
+        h, m, s = parts
+        if h in ("0", "00"):
+            candidates.append(f"{m}:{s}")
+    # MM:SS -> 0:MM:SS / 00:MM:SS (less common, but cheap to try)
+    if len(parts) == 2:
+        m, s = parts
+        candidates.append(f"00:{m}:{s}")
+        candidates.append(f"0:{m}:{s}")
+    # de-dup, keep order
+    seen: set[str] = set()
+    out: list[str] = []
+    for c in candidates:
+        if c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def _find_anchor_offset(text: str, anchor: str) -> tuple[int | None, str | None]:
+    """Search the transcript for the line containing the anchor timestamp.
+
+    Returns (offset, matched_line) where offset is the character index in
+    `text` of the start of the line, or (None, None) if no match.
+    Fireflies lines look like `John Rice-02:22` or `John Rice — 02:22`.
+    """
+    candidates = _normalize_anchor(anchor)
+    lines = text.splitlines(keepends=True)
+    cursor = 0
+    for line in lines:
+        for cand in candidates:
+            if cand in line:
+                # Heuristic: only count it if the timestamp is at the end of
+                # an attribution-like prefix (digit boundary). The simplest
+                # filter: require a digit on at least one side and not be
+                # part of a longer numeric run.
+                idx = line.find(cand)
+                left = line[idx - 1] if idx > 0 else ""
+                right_idx = idx + len(cand)
+                right = line[right_idx] if right_idx < len(line) else ""
+                if left.isdigit() or right.isdigit():
+                    # Probably embedded in a longer number. Skip.
+                    continue
+                return cursor, line.rstrip("\n").rstrip("\r")
+        cursor += len(line)
+    return None, None
+
+
+@app.get("/api/source")
+def source(
+    client: str,
+    meeting_slug: str,
+    anchor: str,
+) -> dict[str, Any]:
+    """Look up a transcript + extraction by client/slug, locate the anchor.
+
+    Reads the per-call extraction JSON, the raw transcript text (local
+    first, then Drive fallback), applies spelling corrections, then locates
+    the anchor line. The anchor is permissive — both `H:MM:SS` and `MM:SS`
+    forms are tried.
+    """
+    if not client or not meeting_slug or not anchor:
+        raise HTTPException(400, "client, meeting_slug, and anchor are required")
+
+    # 1. Per-call extraction JSON (optional)
+    extraction: dict[str, Any] | None = None
+    extraction_path = _PROCESSED_COMMITMENTS_DIR / client / f"{meeting_slug}.json"
+    if extraction_path.exists():
+        try:
+            extraction = json.loads(extraction_path.read_text())
+        except Exception as exc:
+            return {"error": f"failed to parse extraction JSON: {exc}"}
+
+    # 2. Raw transcript — local first, then Drive fallback
+    transcript_text: str | None = None
+    transcript_source: str | None = None
+    drive_error: str | None = None
+    spelling_corrections_applied: list[dict[str, Any]] = []
+
+    local_path = RAW_FIREFLY_DIR / client / f"{meeting_slug}-transcript.txt"
+    if local_path.exists():
+        raw = local_path.read_text()
+        corrected, applied = _apply_corrections(raw, _load_corrections(client))
+        transcript_text = corrected
+        transcript_source = "local"
+        spelling_corrections_applied = applied
+    else:
+        # Fallback: try Drive via the existing _drive_read helper.
+        creds = _load_creds()
+        svc = _drive_service_for(creds)
+        if svc is None:
+            return {
+                "error": (
+                    f"transcript not found locally and Drive credentials are unavailable "
+                    f"(looked at {local_path.relative_to(REPO_ROOT)})"
+                )
+            }
+        pdf_cache: dict[str, str] = {}
+        result = _drive_read(svc, None, pdf_cache, client, meeting_slug, "transcript")
+        if "error" in result:
+            return {"error": f"Drive lookup failed: {result['error']}"}
+        transcript_text = result.get("text", "")
+        transcript_source = result.get("source", "drive")
+        spelling_corrections_applied = result.get("spelling_corrections_applied", []) or []
+        if "drive_error" in result:
+            drive_error = result["drive_error"]
+
+    if not transcript_text:
+        return {"error": "transcript text was empty"}
+
+    # 3. Locate the anchor
+    offset, matched_line = _find_anchor_offset(transcript_text, anchor)
+
+    out: dict[str, Any] = {
+        "client": client,
+        "meeting_slug": meeting_slug,
+        "anchor": anchor,
+        "extraction": extraction,
+        "transcript_text": transcript_text,
+        "transcript_source": transcript_source,
+        "anchor_offset": offset,
+        "anchor_line": matched_line,
+        "spelling_corrections_applied": spelling_corrections_applied,
+    }
+    if drive_error:
+        out["drive_error"] = drive_error
+    return out

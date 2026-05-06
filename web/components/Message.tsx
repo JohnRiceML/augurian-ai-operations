@@ -5,11 +5,125 @@
 // just bubble color + alignment, and that's all the affordance the
 // reader needs.
 
-import { useState } from "react";
+import { Children, isValidElement, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ToolCallCard } from "./ToolCallCard";
 import type { Message as Msg } from "@/lib/types";
+import { findCitations, type Citation } from "@/lib/citations";
+
+// Sentinel format used for citation replacement. We pick a syntax that's
+// safe inside markdown — square brackets are common, but `[[CIT:N]]`
+// double-bracket isn't a markdown link or image and round-trips through
+// remark-gfm unchanged.
+const CITATION_SENTINEL_RE = /\[\[CIT:(\d+)\]\]/g;
+
+interface CitationPillProps {
+  citation: Citation;
+  onClick?: (c: Citation) => void;
+}
+
+function CitationPill({ citation, onClick }: CitationPillProps) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick?.(citation);
+      }}
+      title={`${citation.sourcePath} @ ${citation.anchor}`}
+      className="inline-flex items-baseline gap-1 mx-0.5 px-1.5 py-0.5 rounded font-mono text-[12px] leading-none align-baseline border border-[color:var(--border)] bg-white text-augur-orange hover:bg-[#fff5f5] hover:border-augur-orange/40 transition-colors cursor-pointer"
+    >
+      <span>{citation.anchor}</span>
+      <span aria-hidden="true" className="text-[10px]">↗</span>
+    </button>
+  );
+}
+
+/**
+ * Walk a ReactNode tree and replace `[[CIT:N]]` text occurrences with
+ * citation pills. Non-string children pass through untouched. We bail on
+ * anything inside `<a>` (links nesting buttons is invalid HTML) by simply
+ * leaving the sentinel as-is — the markdown renderer turns these back into
+ * literal text.
+ */
+function renderWithCitations(
+  children: ReactNode,
+  citations: Citation[],
+  onClick?: (c: Citation) => void,
+): ReactNode {
+  if (citations.length === 0) return children;
+
+  const replaceString = (s: string, keyPrefix: string): ReactNode => {
+    if (!CITATION_SENTINEL_RE.test(s)) {
+      // Reset lastIndex after the test() call.
+      CITATION_SENTINEL_RE.lastIndex = 0;
+      return s;
+    }
+    CITATION_SENTINEL_RE.lastIndex = 0;
+    const parts: ReactNode[] = [];
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = CITATION_SENTINEL_RE.exec(s)) !== null) {
+      const idx = Number(m[1]);
+      if (m.index > last) {
+        parts.push(s.slice(last, m.index));
+      }
+      const c = citations[idx];
+      if (c) {
+        parts.push(
+          <CitationPill
+            key={`${keyPrefix}-cit-${i}`}
+            citation={c}
+            onClick={onClick}
+          />,
+        );
+      } else {
+        parts.push(m[0]);
+      }
+      last = m.index + m[0].length;
+      i++;
+    }
+    if (last < s.length) parts.push(s.slice(last));
+    return <>{parts}</>;
+  };
+
+  const walk = (node: ReactNode, keyPrefix: string): ReactNode => {
+    if (typeof node === "string") {
+      return replaceString(node, keyPrefix);
+    }
+    if (Array.isArray(node)) {
+      return node.map((n, i) => (
+        <span key={`${keyPrefix}-${i}`} style={{ display: "contents" }}>
+          {walk(n, `${keyPrefix}-${i}`)}
+        </span>
+      ));
+    }
+    if (isValidElement(node)) {
+      const el = node as React.ReactElement<{ children?: ReactNode }>;
+      // Don't recurse into anchor tags (links can't legally contain buttons)
+      // or code blocks (preserve verbatim text).
+      if (el.type === "a" || el.type === "code" || el.type === "pre") {
+        return el;
+      }
+      const kids = el.props?.children;
+      if (kids == null) return el;
+      const walked = walk(kids, `${keyPrefix}-c`);
+      // Only re-clone if children would actually differ.
+      if (walked === kids) return el;
+      // Cast through unknown to keep TS happy across React's prop variance.
+      const Cloned = el.type as React.ElementType;
+      const newProps = { ...(el.props as Record<string, unknown>), children: walked };
+      return <Cloned {...newProps} />;
+    }
+    return node;
+  };
+
+  return walk(children, "root");
+}
 
 // Tailwind class overrides for assistant markdown. Tight type sizes and
 // generous line-height — no `prose` plugin, this is the whole list.
@@ -103,7 +217,43 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export function Message({ message }: { message: Msg }) {
+interface MessageProps {
+  message: Msg;
+  onCitationClick?: (c: Citation) => void;
+}
+
+/**
+ * Pre-process raw markdown to swap each citation occurrence with a
+ * sentinel token. We return the rewritten text and the citation list so
+ * the renderer can re-inject pills at sentinel positions.
+ *
+ * Tradeoff: citations that fall inside fenced code blocks or inline
+ * `code` will still get sentinel-rewritten in the source string, but the
+ * renderer skips replacement inside <code>/<pre> elements (see
+ * renderWithCitations) so they show as literal `[[CIT:N]]` text in code.
+ * That's acceptable — citations in code spans are a non-goal.
+ */
+function rewriteCitations(content: string): {
+  rewritten: string;
+  citations: Citation[];
+} {
+  const citations = findCitations(content);
+  if (citations.length === 0) return { rewritten: content, citations };
+  let out = "";
+  let cursor = 0;
+  // Walk citations in order, replacing each rawText occurrence by index.
+  citations.forEach((c, i) => {
+    const idx = content.indexOf(c.rawText, cursor);
+    if (idx === -1) return;
+    out += content.slice(cursor, idx);
+    out += `[[CIT:${i}]]`;
+    cursor = idx + c.rawText.length;
+  });
+  out += content.slice(cursor);
+  return { rewritten: out, citations };
+}
+
+export function Message({ message, onCitationClick }: MessageProps) {
   if (message.role === "user") {
     return (
       <div className="group flex justify-end animate-fade-in">
@@ -126,6 +276,38 @@ export function Message({ message }: { message: Msg }) {
   // Assistant
   const hasTools = (message.toolCalls?.length ?? 0) > 0;
   const showShimmer = message.pending && !message.content && !hasTools;
+  const { rewritten, citations } = useMemo(
+    () => rewriteCitations(message.content || ""),
+    [message.content],
+  );
+  // Build the components map once per render — the wrap function closes
+  // over the current citations list and the click handler.
+  const components = useMemo(() => {
+    const wrap =
+      (Tag: keyof JSX.IntrinsicElements, base: any) =>
+      ({ children, ...rest }: any) => {
+        const wrapped = renderWithCitations(
+          children,
+          citations,
+          onCitationClick,
+        );
+        return base
+          ? base({ children: wrapped, ...rest })
+          : (
+              <Tag {...rest}>
+                {wrapped as any}
+              </Tag>
+            );
+      };
+    return {
+      ...MD_COMPONENTS,
+      p: wrap("p", MD_COMPONENTS.p),
+      li: wrap("li", MD_COMPONENTS.li),
+      td: wrap("td", MD_COMPONENTS.td),
+      th: wrap("th", MD_COMPONENTS.th),
+      strong: wrap("strong", MD_COMPONENTS.strong),
+    };
+  }, [citations, onCitationClick]);
   return (
     <div className="group flex justify-start animate-fade-in">
       <div className="flex flex-col items-start gap-1 max-w-[85%] sm:max-w-[80%]">
@@ -150,9 +332,9 @@ export function Message({ message }: { message: Msg }) {
             <div className="text-ink dark:text-ink-dark break-words">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
-                components={MD_COMPONENTS}
+                components={components}
               >
-                {message.content}
+                {rewritten}
               </ReactMarkdown>
             </div>
           )}

@@ -22,6 +22,13 @@
   --augur-orange: #c90000;
   --augur-orange-700: #a00000;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  /* Motion tokens — share one easing across hover, focus, and small
+   * state transitions so the UI feels coherent. The cubic-bezier is
+   * the Apple-style "ease-out-quart" curve: snappy start, soft land. */
+  --motion-fast: 150ms;
+  --motion: 250ms;
+  --motion-slow: 350ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html,
@@ -30,35 +37,68 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* ss01 (stylistic set) and the default kerning/ligature pair give
+   * the system stack a touch more polish without a webfont import. */
+  font-feature-settings: "ss01", "kern", "liga";
 }
 
 body {
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
-/* Subtle scrollbar — Apple-restrained, not invisible. */
+/* Typography: tighten bold/semibold tracking, loosen small-caps tracking.
+ * Subtle on its own, additive across the whole UI. */
+strong,
+b,
+.font-bold,
+.font-semibold,
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+.tracking-caps,
+[class*="uppercase"] {
+  letter-spacing: 0.04em;
+}
+
+/* Selection — a light tint of the accent, never a saturated red wash. */
+::selection {
+  background: rgba(201, 0, 0, 0.14);
+  color: var(--ink);
+}
+
+/* Subtle scrollbar — Apple-restrained, not invisible. Hover widens
+ * the thumb slightly via color, not size, so layout never shifts. */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.10);
   border-radius: 8px;
+  transition: background var(--motion-fast) var(--ease-out);
 }
-/* dark scrollbar override removed — forced light mode in v1 */
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.22);
+  background: rgba(0, 0, 0, 0.24);
 }
 
-/* Focus rings — keyboard-only, never noisy. */
+/* Focus rings — keyboard-only, never noisy. 2.5px outline plus a
+ * soft halo so the ring reads on both white and cream surfaces. */
 :focus {
   outline: none;
 }
 :focus-visible {
-  outline: 2px solid var(--augur-orange);
+  outline: 2.5px solid var(--augur-orange);
   outline-offset: 2px;
   border-radius: 6px;
+  box-shadow: 0 0 0 4px rgba(201, 0, 0, 0.12);
+  transition: box-shadow var(--motion-fast) var(--ease-out),
+    outline-color var(--motion-fast) var(--ease-out);
 }
 
 /* Markdown-ish content inside the assistant bubble. We don't pull in a

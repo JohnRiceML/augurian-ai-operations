@@ -6,11 +6,13 @@
 // bottom so the messages always have a clear scroll axis.
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConnectionPills } from "./ConnectionPills";
 import { EmptyState } from "./EmptyState";
 import { Composer } from "./Composer";
 import { Message as MessageRow } from "./Message";
+import { CitationPane } from "./CitationPane";
+import type { Citation } from "@/lib/citations";
 import type { Message } from "@/lib/types";
 
 interface ChatShellProps {
@@ -32,6 +34,10 @@ export function ChatShell({
 }: ChatShellProps) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const lastLenRef = useRef(0);
+  // The citation pane is anchored to the right edge with `position: fixed`
+  // so it overlays without shifting the chat content. Same model the iOS
+  // Files inspector uses.
+  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
 
   // Auto-scroll on new content, but only if the user is already at the
   // bottom — don't yank them away from a message they're reading. The
@@ -113,7 +119,11 @@ export function ChatShell({
         ) : (
           <div className="mx-auto w-full max-w-chat px-4 sm:px-6 py-8 space-y-4">
             {messages.map((m) => (
-              <MessageRow key={m.id} message={m} />
+              <MessageRow
+                key={m.id}
+                message={m}
+                onCitationClick={setActiveCitation}
+              />
             ))}
           </div>
         )}
@@ -135,6 +145,11 @@ export function ChatShell({
           </p>
         </div>
       </div>
+
+      <CitationPane
+        citation={activeCitation}
+        onClose={() => setActiveCitation(null)}
+      />
     </div>
   );
 }
