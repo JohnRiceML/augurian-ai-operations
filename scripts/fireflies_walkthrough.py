@@ -73,7 +73,7 @@ GOOGLE_SCOPES = [
 ]
 EXTRACTOR_AGENT_PATH = REPO_ROOT / ".claude" / "agents" / "fireflies-extractor.md"
 EXTRACTION_RULES_PATH = REPO_ROOT / ".claude" / "skills" / "fireflies-extraction-rules" / "SKILL.md"
-CLAUDE_MODEL = "claude-opus-4-7"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
 # ---------- Lazy imports ----------

@@ -403,6 +403,61 @@ def tool_query_gsc(args: dict[str, Any], creds) -> dict[str, Any]:
         return {"error": f"gsc query failed: {type(exc).__name__}: {exc}"}
 
 
+def tool_list_gsc_sites(args: dict[str, Any], creds: Any) -> dict[str, Any]:
+    """List the verified Search Console properties this user can query.
+
+    No required args. Used when the user asks a GSC question without naming
+    a site (e.g. "what's the top keyword last month") and we need to pick
+    one or ask. Read-only, requires webmasters.readonly which is already
+    in our scope set.
+    """
+    try:
+        svc = _gsc_service(creds)
+        resp = svc.sites().list().execute()
+        entries = resp.get("siteEntry", [])
+        return {
+            "site_count": len(entries),
+            "sites": [
+                {
+                    "site_url": e.get("siteUrl"),
+                    "permission": e.get("permissionLevel"),
+                }
+                for e in entries
+            ],
+        }
+    except Exception as exc:
+        return {"error": f"list gsc sites failed: {type(exc).__name__}: {exc}"}
+
+
+def tool_list_ga4_properties(args: dict[str, Any], creds: Any) -> dict[str, Any]:
+    """List the GA4 accounts + properties this user can query.
+
+    No required args. Used when the user asks a GA4 question without naming
+    a property. Uses the GA4 Admin API's accountSummaries.list which
+    accepts analytics.readonly.
+    """
+    try:
+        from google.analytics.admin_v1beta import AnalyticsAdminServiceClient
+
+        client = AnalyticsAdminServiceClient(credentials=creds)
+        out: list[dict[str, Any]] = []
+        for summary in client.list_account_summaries():
+            account_label = summary.display_name or summary.account
+            for prop in summary.property_summaries or []:
+                # property name format: "properties/123456789"
+                pid = prop.property.split("/")[-1] if prop.property else ""
+                out.append(
+                    {
+                        "account": account_label,
+                        "property_id": pid,
+                        "property_name": prop.display_name or prop.property,
+                    }
+                )
+        return {"property_count": len(out), "properties": out}
+    except Exception as exc:
+        return {"error": f"list ga4 properties failed: {type(exc).__name__}: {exc}"}
+
+
 # ----------------------------- Tool registry -----------------------------
 
 # Extra tool schemas that this runtime adds on top of `_ask.TOOLS`. Live API
@@ -492,6 +547,26 @@ WEB_EXTRA_TOOLS: list[dict[str, Any]] = [
             "required": ["site_url", "start_date", "end_date"],
         },
     },
+    {
+        "name": "list_gsc_sites",
+        "description": (
+            "List the verified Search Console properties this user can "
+            "query. Call this FIRST when the user asks a GSC question "
+            "without naming a site — gives you the available site_url "
+            "values to use with query_gsc."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "list_ga4_properties",
+        "description": (
+            "List the GA4 accounts + properties this user can query. Call "
+            "this FIRST when the user asks a GA4 question without naming "
+            "a property — gives you the property_id values to use with "
+            "query_ga4."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 # Merge: keep the original 5 file-backed tools, append the 2 live-API ones.
@@ -511,6 +586,8 @@ TOOL_RUNNERS = {
     "read_meeting_transcript": tool_read_meeting_transcript,
     "query_ga4": tool_query_ga4,
     "query_gsc": tool_query_gsc,
+    "list_gsc_sites": tool_list_gsc_sites,
+    "list_ga4_properties": tool_list_ga4_properties,
 }
 LIVE_API_TOOLS = {"query_ga4", "query_gsc"}
 
@@ -626,9 +703,29 @@ When to use these vs. the meeting tools:
   uses BOTH — read the May call to find the change, then query GSC for
   the page that changed.
 
-The user must provide property_id (GA4) or site_url (GSC) — these are
-client-specific and live in pipelines/clients.yaml. If they're not given
-in the question and not in chat history, ask the user before guessing.
+## Discovery — call list_* tools BEFORE asking the user
+
+You ALSO have:
+
+- **`list_gsc_sites()`** — returns every Search Console property the user
+  can query. Call this FIRST whenever the user asks a GSC question
+  without naming a site.
+- **`list_ga4_properties()`** — returns every GA4 account + property the
+  user can query. Call this FIRST whenever the user asks a GA4 question
+  without naming a property.
+
+Behavior:
+- If the discovery call returns exactly ONE site/property, use it without
+  asking — that's unambiguous.
+- If it returns multiple, list them in your response and ask which one to
+  query. Do NOT ask the user for a `site_url` or `property_id` blindly
+  before discovery has run.
+- If it returns zero, tell the user the account has no verified
+  properties of that type — they may need to check Google permissions.
+
+Update to the rule above (about asking for property_id / site_url): always
+run discovery first. Only ask the user if discovery returns multiple and
+the user's question doesn't disambiguate.
 """
     return base + extra
 

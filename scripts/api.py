@@ -329,6 +329,16 @@ def _build_runners(
             }
         return _web.tool_query_gsc(args, creds)
 
+    def _list_gsc_sites(args: dict[str, Any]) -> dict[str, Any]:
+        if creds is None:
+            return {"error": "Google credentials unavailable."}
+        return _web.tool_list_gsc_sites(args, creds)
+
+    def _list_ga4_properties(args: dict[str, Any]) -> dict[str, Any]:
+        if creds is None:
+            return {"error": "Google credentials unavailable."}
+        return _web.tool_list_ga4_properties(args, creds)
+
     return {
         "query_commitments": _ask.tool_query_commitments,
         "get_meeting_details": _ask.tool_get_meeting_details,
@@ -337,6 +347,8 @@ def _build_runners(
         "read_meeting_transcript": _read_transcript,
         "query_ga4": _query_ga4,
         "query_gsc": _query_gsc,
+        "list_gsc_sites": _list_gsc_sites,
+        "list_ga4_properties": _list_ga4_properties,
     }
 
 

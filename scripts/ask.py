@@ -36,7 +36,7 @@ DATA_DIR = REPO_ROOT / "data" / "walkthrough"
 PROCESSED_DIR = DATA_DIR / "processed" / "commitments"
 RAW_FIREFLY_DIR = DATA_DIR / "raw" / "firefly"
 TRACKER_PROMPT_PATH = REPO_ROOT / ".claude" / "agents" / "commitment-tracker.md"
-CLAUDE_MODEL = "claude-opus-4-7"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
 # ----------------------------- Tool schemas -----------------------------
