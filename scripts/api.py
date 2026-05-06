@@ -251,35 +251,57 @@ def _build_runners(
     """Per-request runner table. Closes over Drive service + creds."""
 
     def _list_meetings(args: dict[str, Any]) -> dict[str, Any]:
+        """List meetings — merge local extractions + Drive PDFs.
+
+        Drive is the source of truth for what meetings exist; local is just
+        the cache of what's been extracted. The agent needs to see both so
+        it can answer "was there a meeting yesterday?" even when the
+        extractor hasn't run yet.
+        """
         local = _ask.tool_list_meetings(args)
-        if local.get("meetings"):
-            return local
-        if svc is None:
-            return local
-        try:
-            files = _drive_list_transcripts(svc, folder_id)
-        except Exception as exc:
-            return {**local, "drive_error": str(exc)}
-        meetings = []
-        for f in files:
-            name = f["name"]
-            slug = name
-            if "-transcript-" in name:
-                slug = name.split("-transcript-", 1)[0]
-            meetings.append(
-                {
-                    "slug": slug,
-                    "drive_file_id": f["id"],
-                    "drive_name": name,
-                    "modified_time": f.get("modifiedTime", ""),
-                }
-            )
-        return {
+        local_meetings = local.get("meetings", []) or []
+        for m in local_meetings:
+            m["source"] = "extracted"
+
+        drive_meetings: list[dict[str, Any]] = []
+        drive_error: str | None = None
+        if svc is not None:
+            try:
+                files = _drive_list_transcripts(svc, folder_id)
+            except Exception as exc:
+                drive_error = str(exc)
+            else:
+                local_slugs = {m.get("slug") for m in local_meetings}
+                for f in files:
+                    name = f["name"]
+                    slug = name
+                    if "-transcript-" in name:
+                        slug = name.split("-transcript-", 1)[0]
+                    if slug in local_slugs:
+                        # Already extracted — Drive entry is redundant.
+                        continue
+                    drive_meetings.append(
+                        {
+                            "slug": slug,
+                            "drive_file_id": f["id"],
+                            "drive_name": name,
+                            "modified_time": f.get("modifiedTime", ""),
+                            "source": "drive_only",
+                        }
+                    )
+
+        all_meetings = local_meetings + drive_meetings
+        result: dict[str, Any] = {
             "client": args["client"],
-            "meetings": meetings,
-            "count": len(meetings),
-            "source": "drive",
+            "meetings": all_meetings,
+            "count": len(all_meetings),
+            "extracted_count": len(local_meetings),
+            "drive_only_count": len(drive_meetings),
+            "drive_searched": svc is not None,
         }
+        if drive_error:
+            result["drive_error"] = drive_error
+        return result
 
     def _read_summary(args: dict[str, Any]) -> dict[str, Any]:
         return _drive_read(svc, folder_id, pdf_cache, args["client"], args["meeting_slug"], "summary")

@@ -574,6 +574,37 @@ def _web_system_prompt() -> str:
     base = _ask._system_prompt()
     extra = """
 
+# This runtime is Drive-aware — read tools hit live Drive, not just local files
+
+The descriptions in the cascade above were written for the file-backed CLI
+runtime. In THIS runtime (the web chat), three of the meeting tools query
+LIVE Google Drive in addition to the local cache:
+
+- **`list_meetings(client)`** — returns BOTH:
+  - meetings already extracted to the local index (with `source: "extracted"`)
+  - meetings whose Fireflies PDFs sit in Drive but haven't been extracted
+    yet (with `source: "drive_only"`, plus a `drive_file_id` and `drive_name`)
+  Total under `count`; per-source counts under `extracted_count` and
+  `drive_only_count`.
+
+- **`read_meeting_summary(client, meeting_slug)`** — searches Drive for a
+  PDF whose name contains `<slug>` AND `-summary-`, downloads it, runs
+  pypdf + spelling corrections. Falls back to local raw text if Drive misses.
+
+- **`read_meeting_transcript(client, meeting_slug)`** — same pattern for
+  the transcript PDF.
+
+So if `query_commitments` shows nothing for a date the user asked about, do
+NOT conclude the meeting doesn't exist. Call `list_meetings` and check the
+`drive_only` entries — the transcript may be in Drive but not yet extracted.
+You can then `read_meeting_summary` or `read_meeting_transcript` to read it
+live. Only commitments from extracted meetings appear in the index; live
+reads of unextracted meetings give you the raw text but not structured items.
+
+For drive_only meetings the slug is derived from the Fireflies filename:
+everything before `-transcript-`. E.g. `John-Christie-Tony-transcript-...pdf`
+has slug `John-Christie-Tony`. Pass that exact slug to read_meeting_*.
+
 # Live Google API tools (this runtime only)
 
 You ALSO have two live API tools that hit Google's APIs directly:
