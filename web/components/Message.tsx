@@ -12,8 +12,10 @@ import remarkGfm from "remark-gfm";
 import { AnimatePresence, motion } from "framer-motion";
 import { ToolCallCard } from "./ToolCallCard";
 import { ProcessCallout } from "./ProcessCallout";
+import { Widget as WidgetView } from "./widgets/Widget";
 import type { Message as Msg } from "@/lib/types";
 import { findCitations, type Citation } from "@/lib/citations";
+import { parseWidgets, type Widget } from "@/lib/widgets";
 
 // Shared easing for tool-card stagger entry.
 const STAGGER_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
@@ -23,6 +25,11 @@ const STAGGER_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 // double-bracket isn't a markdown link or image and round-trips through
 // remark-gfm unchanged.
 const CITATION_SENTINEL_RE = /\[\[CIT:(\d+)\]\]/g;
+
+// Same idea for widgets. The widgets pre-pass swaps `\`\`\`widget {...}\`\`\``
+// fences for `[[WIDGET:N]]` before markdown renders. The pass runs BEFORE
+// the citation pre-pass; both sentinel families coexist.
+const WIDGET_SENTINEL_RE = /\[\[WIDGET:(\d+)\]\]/g;
 
 interface CitationPillProps {
   citation: Citation;
@@ -128,6 +135,111 @@ function renderWithCitations(
   };
 
   return walk(children, "root");
+}
+
+/**
+ * Walk a ReactNode tree replacing `[[WIDGET:N]]` text occurrences with the
+ * matching widget component. Same skip rules as citations (don't recurse
+ * into <code>/<pre>). Widgets are block-level; the paragraph wrapper is
+ * detected upstream so a sentinel on its own line doesn't get jammed
+ * inside a <p>.
+ */
+function renderWithWidgets(
+  children: ReactNode,
+  widgets: Widget[],
+): ReactNode {
+  if (widgets.length === 0) return children;
+
+  const replaceString = (s: string, keyPrefix: string): ReactNode => {
+    if (!WIDGET_SENTINEL_RE.test(s)) {
+      WIDGET_SENTINEL_RE.lastIndex = 0;
+      return s;
+    }
+    WIDGET_SENTINEL_RE.lastIndex = 0;
+    const parts: ReactNode[] = [];
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = WIDGET_SENTINEL_RE.exec(s)) !== null) {
+      const idx = Number(m[1]);
+      if (m.index > last) parts.push(s.slice(last, m.index));
+      const w = widgets[idx];
+      if (w) {
+        parts.push(<WidgetView key={`${keyPrefix}-w-${i}`} widget={w} />);
+      } else {
+        parts.push(m[0]);
+      }
+      last = m.index + m[0].length;
+      i++;
+    }
+    if (last < s.length) parts.push(s.slice(last));
+    return <>{parts}</>;
+  };
+
+  const walk = (node: ReactNode, keyPrefix: string): ReactNode => {
+    if (typeof node === "string") return replaceString(node, keyPrefix);
+    if (Array.isArray(node)) {
+      return node.map((n, i) => (
+        <span key={`${keyPrefix}-${i}`} style={{ display: "contents" }}>
+          {walk(n, `${keyPrefix}-${i}`)}
+        </span>
+      ));
+    }
+    if (isValidElement(node)) {
+      const el = node as React.ReactElement<{ children?: ReactNode }>;
+      if (el.type === "a" || el.type === "code" || el.type === "pre") return el;
+      const kids = el.props?.children;
+      if (kids == null) return el;
+      const walked = walk(kids, `${keyPrefix}-c`);
+      if (walked === kids) return el;
+      const Cloned = el.type as React.ElementType;
+      const newProps = { ...(el.props as Record<string, unknown>), children: walked };
+      return <Cloned {...newProps} />;
+    }
+    return node;
+  };
+
+  return walk(children, "root");
+}
+
+/**
+ * If `children` is a flat list of widget sentinels (and only that — possibly
+ * with whitespace between them), return the parsed widget indexes so the
+ * caller can render them as block-level cards instead of stuffing them into
+ * a `<p>` (which is invalid HTML — a `<div>` widget can't legally nest in
+ * `<p>`).
+ *
+ * Returns `null` for "this paragraph has prose mixed in, render normally."
+ */
+function widgetIndexesIfWholeParagraph(children: ReactNode): number[] | null {
+  const indexes: number[] = [];
+  const visit = (node: ReactNode): boolean => {
+    if (node == null || typeof node === "boolean") return true;
+    if (typeof node === "string") {
+      // Strip the sentinels from the string and check what's left. If only
+      // whitespace remains, the string contributes only widget refs.
+      let cursor = 0;
+      let m: RegExpExecArray | null;
+      const re = new RegExp(WIDGET_SENTINEL_RE.source, "g");
+      while ((m = re.exec(node)) !== null) {
+        const between = node.slice(cursor, m.index);
+        if (between.trim() !== "") return false;
+        indexes.push(Number(m[1]));
+        cursor = m.index + m[0].length;
+      }
+      const tail = node.slice(cursor);
+      if (tail.trim() !== "") return false;
+      return true;
+    }
+    if (typeof node === "number") return false;
+    if (Array.isArray(node)) {
+      for (const n of node) if (!visit(n)) return false;
+      return true;
+    }
+    return false;
+  };
+  if (!visit(children)) return null;
+  return indexes.length > 0 ? indexes : null;
 }
 
 // Tailwind class overrides for assistant markdown. Tight type sizes and
@@ -281,21 +393,45 @@ export function Message({ message, onCitationClick }: MessageProps) {
   // Assistant
   const hasTools = (message.toolCalls?.length ?? 0) > 0;
   const showShimmer = message.pending && !message.content && !hasTools;
-  const { rewritten, citations } = useMemo(
-    () => rewriteCitations(message.content || ""),
-    [message.content],
-  );
+  // Two pre-passes: widgets first, then citations. Both leave sentinels in
+  // the markdown string that the renderer below swaps for components.
+  const { rewritten, citations, widgets } = useMemo(() => {
+    const raw = message.content || "";
+    const { widgets: parsed, contentWithSentinels } = parseWidgets(raw);
+    const { rewritten, citations } = rewriteCitations(contentWithSentinels);
+    return { rewritten, citations, widgets: parsed.map((w) => w.widget) };
+  }, [message.content]);
   // Build the components map once per render — the wrap function closes
-  // over the current citations list and the click handler.
+  // over the current citations + widgets and the click handler.
   const components = useMemo(() => {
     const wrap =
       (Tag: keyof JSX.IntrinsicElements, base: any) =>
       ({ children, ...rest }: any) => {
-        const wrapped = renderWithCitations(
+        // For paragraphs that contain ONLY widget sentinels, render the
+        // widgets as block-level cards instead of nesting <div>s in <p>
+        // (invalid HTML — React will hydrate-error). For mixed content
+        // we fall through to the normal wrap path; widget sentinels in
+        // mid-prose still render via renderWithWidgets.
+        if (Tag === "p") {
+          const onlyWidgets = widgetIndexesIfWholeParagraph(children);
+          if (onlyWidgets) {
+            return (
+              <>
+                {onlyWidgets.map((idx, i) => {
+                  const w = widgets[idx];
+                  if (!w) return null;
+                  return <WidgetView key={`pw-${idx}-${i}`} widget={w} />;
+                })}
+              </>
+            );
+          }
+        }
+        const withCitations = renderWithCitations(
           children,
           citations,
           onCitationClick,
         );
+        const wrapped = renderWithWidgets(withCitations, widgets);
         return base
           ? base({ children: wrapped, ...rest })
           : (
@@ -312,7 +448,7 @@ export function Message({ message, onCitationClick }: MessageProps) {
       th: wrap("th", MD_COMPONENTS.th),
       strong: wrap("strong", MD_COMPONENTS.strong),
     };
-  }, [citations, onCitationClick]);
+  }, [citations, widgets, onCitationClick]);
   return (
     <div className="group flex justify-start animate-fade-in">
       <div className="flex flex-col items-start gap-1 max-w-[85%] sm:max-w-[80%]">

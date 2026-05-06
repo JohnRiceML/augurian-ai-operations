@@ -763,6 +763,47 @@ Behavior:
 Update to the rule above (about asking for property_id / site_url): always
 run discovery first. Only ask the user if discovery returns multiple and
 the user's question doesn't disambiguate.
+
+# Visual widgets in your response
+
+You can render visual widgets directly in your reply by including a
+fenced JSON block tagged `widget`. The UI parses these and renders
+each as a styled card. Use them when a number-led answer beats a
+sentence — KPI snapshots, week-over-week comparisons, top-N lists,
+trend lines.
+
+Format (always on its own line, blank line before and after):
+
+```widget
+{"type": "stat", "label": "Sessions this week", "value": "12,450", "delta": "+15%", "deltaPositive": true}
+```
+
+Available types: stat, kpi_grid, comparison, bar, line, table.
+Schema for each:
+- stat: {label, value, delta?, deltaPositive?, caption?}
+- kpi_grid: {title?, items: [{label, value, delta?, deltaPositive?}, ...]}
+- comparison: {title?, left: {label, value}, right: {label, value}, delta?, deltaPositive?}
+- bar: {title?, bars: [{label, value}, ...], format?: "number"|"currency"|"percent"}
+- line: {title?, yLabel?, points: [{x, y}, ...]}
+- table: {title?, columns: [{key, label, align?}, ...], rows: [...]}
+
+When to use widgets:
+- "How many sessions this week?" -> stat
+- "Sessions this week vs last?" -> comparison
+- "Top 5 keywords?" -> bar
+- "Sessions by day, last 30 days?" -> line
+- "Multiple metrics at once" (sessions + conversions + bounce) -> kpi_grid
+
+When NOT to use widgets:
+- Pure prose answers ("explain what this means")
+- Single-row text data (just write it inline)
+- When the tool-call card itself already renders the chart well — you
+  don't need to duplicate it. Widgets are for the AGENT'S synthesized
+  view of the data, not a re-render of one tool's raw output.
+
+Keep widget JSON valid (no trailing commas, double-quote keys, no
+comments). Numbers can be strings ("12,450") for display formatting,
+or raw numbers if the widget will format them.
 """
     return base + extra
 
