@@ -2,13 +2,13 @@
 
 // One tool call, rendered inside an assistant message. Default-collapsed:
 // most users don't want to see the JSON, but the option to drill in is
-// the entire reason this UI exists. Card is visually subordinate to the
-// message — narrower padding, lighter background, smaller text.
+// the entire reason this UI exists.
 //
-// When the tool result matches a known shape (GSC queries, GA4 series,
-// commitments, etc.) we render an inline chart or table instead of the
-// raw JSON; the JSON is still reachable in a collapsed `<details>` for
-// verification.
+// Visual model: subordinate to the message text. Single hairline border,
+// no heavy left-stripe tint, the service color shows up only as a small
+// accent dot. Hover gives a subtle background lift to signal the card is
+// clickable. Expand reveals a chart (when the result shape is known) or
+// the raw JSON, with args + result as quietly-headed sections.
 
 import { useState } from "react";
 import {
@@ -28,19 +28,61 @@ import { BarChart } from "./charts/BarChart";
 import { LineChart } from "./charts/LineChart";
 import { DataTable } from "./charts/DataTable";
 
-function StatusDot({ status }: { status: ToolCall["status"] }) {
+function StatusDot({
+  status,
+  isError,
+  tint,
+}: {
+  status: ToolCall["status"];
+  isError: boolean;
+  tint: string;
+}) {
   if (status === "running") {
     return (
       <span
         aria-label="running"
-        className="h-2 w-2 rounded-full bg-augur-orange animate-shimmer"
+        className="inline-block h-1.5 w-1.5 rounded-full animate-shimmer"
+        style={{ background: tint }}
       />
     );
   }
-  if (status === "error") {
-    return <span aria-label="error" className="h-2 w-2 rounded-full bg-rose-500" />;
+  if (isError) {
+    return (
+      <span
+        aria-label="error"
+        className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500"
+      />
+    );
   }
-  return <span aria-label="done" className="h-2 w-2 rounded-full bg-emerald-500" />;
+  return (
+    <span
+      aria-label="done"
+      className="inline-block h-1.5 w-1.5 rounded-full"
+      style={{ background: tint }}
+    />
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      aria-hidden="true"
+      className="text-muted transition-transform duration-200 ease-out"
+      style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+    >
+      <path
+        d="M4.5 3l3 3-3 3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 function previewText(result: unknown): string {
@@ -77,67 +119,49 @@ export function ToolCallCard({ call }: ToolCallCardProps) {
   const service = serviceForTool(call.name);
   const tint = SERVICE_PRIMARY[service];
 
-  // Compute the visualization plan once per render. Cheap (it's just a
-  // shape check + slice/sort) so memoization isn't worth the React import.
   const plan = planVisualization(call.name, call.result);
 
   return (
     <div
-      className="rounded-[10px] border border-[color:var(--border)] bg-[color:var(--bg)]/60 dark:bg-[color:var(--bg)]/40 px-3 py-2 text-[13px]"
-      style={{
-        transition: "max-height 200ms ease-out",
-        borderLeft: `3px solid ${tint}`,
-      }}
+      className="group rounded-[8px] border border-[color:var(--border)] bg-[color:var(--bg)] transition-colors duration-150 hover:bg-[color:var(--surface)]"
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 text-left"
+        className="flex w-full items-center gap-2.5 px-3 py-2 text-left"
       >
-        <span className="flex items-center gap-2 min-w-0">
-          <ServiceLogo service={service} size={14} />
-          <code className="font-mono text-[12.5px] text-ink dark:text-ink-dark">
-            {call.name}
-          </code>
-          <span className="text-[12px] text-muted dark:text-muted-dark">
-            — {ServiceLabel({ service })}
+        <Chevron open={open} />
+        <ServiceLogo service={service} size={14} />
+        <code className="flex-shrink-0 font-mono text-[12.5px] tracking-tight text-ink">
+          {call.name}
+        </code>
+        <span className="text-[12px] text-muted">{ServiceLabel({ service })}</span>
+        {isError && (
+          <span className="text-[10.5px] font-medium uppercase tracking-wider text-rose-600">
+            error
           </span>
-          {isError && (
-            <span className="text-[11.5px] uppercase tracking-wide text-rose-600 dark:text-rose-400">
-              error
-            </span>
-          )}
-        </span>
-        <span className="flex items-center gap-2">
-          <StatusDot status={call.status} />
-          <span
-            className="text-[11px] text-muted dark:text-muted-dark"
-            aria-hidden="true"
-          >
-            {open ? "▴" : "▾"}
-          </span>
+        )}
+        <span className="ml-auto flex items-center">
+          <StatusDot status={call.status} isError={isError} tint={tint} />
         </span>
       </button>
       {open && (
-        <div className="mt-2 space-y-2 animate-fade-in">
-          <div>
-            <div className="mb-1 text-[11px] uppercase tracking-wide text-muted dark:text-muted-dark">
-              args
-            </div>
-            <pre className="overflow-x-auto rounded-md bg-[color:var(--surface)] p-2 font-mono text-[12px] leading-snug border border-[color:var(--border)]">
+        <div
+          className="px-3 pb-3 pt-1 space-y-3 animate-fade-in"
+          style={{ animationDuration: "var(--motion, 200ms)" }}
+        >
+          <Section label="Arguments">
+            <pre className="overflow-x-auto rounded-md bg-[color:var(--surface)] px-3 py-2 font-mono text-[11.5px] leading-relaxed text-ink">
               {JSON.stringify(call.args, null, 2)}
             </pre>
-          </div>
-          <div>
-            <div className="mb-1 text-[11px] uppercase tracking-wide text-muted dark:text-muted-dark">
-              result
-            </div>
+          </Section>
+          <Section label="Result">
             {plan.kind === "none" || call.result === undefined ? (
-              <pre className="overflow-x-auto rounded-md bg-[color:var(--surface)] p-2 font-mono text-[12px] leading-snug border border-[color:var(--border)]">
+              <pre className="overflow-x-auto rounded-md bg-[color:var(--surface)] px-3 py-2 font-mono text-[11.5px] leading-relaxed text-ink">
                 {call.result === undefined ? "…" : previewText(call.result)}
               </pre>
             ) : (
-              <div className="rounded-md bg-[color:var(--surface)] p-2 border border-[color:var(--border)]">
+              <div className="rounded-md bg-[color:var(--surface)] px-3 py-3">
                 {plan.kind === "bar" && (
                   <BarChart
                     data={(plan.data as BarVizData).bars}
@@ -157,21 +181,37 @@ export function ToolCallCard({ call }: ToolCallCardProps) {
                     columns={(plan.data as TableVizData).columns}
                   />
                 )}
-                <details className="mt-2">
-                  <summary
-                    className="cursor-pointer text-[11px] uppercase tracking-wide text-muted dark:text-muted-dark"
-                  >
-                    Raw JSON
+                <details className="mt-2.5 group/raw">
+                  <summary className="cursor-pointer list-none text-[10.5px] font-medium uppercase tracking-wider text-muted hover:text-ink transition-colors">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block transition-transform duration-150 group-open/raw:rotate-90">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+                          <path d="M3 2l2 2-2 2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                      Raw JSON
+                    </span>
                   </summary>
-                  <pre className="overflow-x-auto rounded-md bg-[color:var(--bg)] p-2 mt-1 font-mono text-[12px] leading-snug border border-[color:var(--border)]">
+                  <pre className="mt-2 overflow-x-auto rounded-md bg-[color:var(--bg)] px-3 py-2 font-mono text-[11.5px] leading-relaxed text-ink border border-[color:var(--border)]">
                     {previewText(call.result)}
                   </pre>
                 </details>
               </div>
             )}
-          </div>
+          </Section>
         </div>
       )}
+    </div>
+  );
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-wider text-muted">
+        {label}
+      </div>
+      {children}
     </div>
   );
 }
