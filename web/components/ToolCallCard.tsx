@@ -6,6 +6,12 @@
 // message — narrower padding, lighter background, smaller text.
 
 import { useState } from "react";
+import {
+  ServiceLogo,
+  ServiceLabel,
+  serviceForTool,
+  SERVICE_PRIMARY,
+} from "./ServiceLogo";
 import type { ToolCall } from "@/lib/types";
 
 function StatusDot({ status }: { status: ToolCall["status"] }) {
@@ -54,10 +60,16 @@ export function ToolCallCard({ call }: ToolCallCardProps) {
       typeof call.result === "object" &&
       "error" in (call.result as Record<string, unknown>));
 
+  const service = serviceForTool(call.name);
+  const tint = SERVICE_PRIMARY[service];
+
   return (
     <div
       className="rounded-[10px] border border-[color:var(--border)] bg-[color:var(--bg)]/60 dark:bg-[color:var(--bg)]/40 px-3 py-2 text-[13px]"
-      style={{ transition: "max-height 200ms ease-out" }}
+      style={{
+        transition: "max-height 200ms ease-out",
+        borderLeft: `3px solid ${tint}`,
+      }}
     >
       <button
         type="button"
@@ -65,18 +77,27 @@ export function ToolCallCard({ call }: ToolCallCardProps) {
         className="flex w-full items-center justify-between gap-3 text-left"
       >
         <span className="flex items-center gap-2 min-w-0">
-          <StatusDot status={call.status} />
+          <ServiceLogo service={service} size={14} />
           <code className="font-mono text-[12.5px] text-ink dark:text-ink-dark">
             {call.name}
           </code>
+          <span className="text-[12px] text-muted dark:text-muted-dark">
+            — {ServiceLabel({ service })}
+          </span>
           {isError && (
             <span className="text-[11.5px] uppercase tracking-wide text-rose-600 dark:text-rose-400">
               error
             </span>
           )}
         </span>
-        <span className="text-[11px] text-muted dark:text-muted-dark">
-          {open ? "hide" : "show"}
+        <span className="flex items-center gap-2">
+          <StatusDot status={call.status} />
+          <span
+            className="text-[11px] text-muted dark:text-muted-dark"
+            aria-hidden="true"
+          >
+            {open ? "▴" : "▾"}
+          </span>
         </span>
       </button>
       {open && (

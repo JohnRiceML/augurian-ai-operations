@@ -6,14 +6,15 @@
 import { useEffect, useState } from "react";
 import { getStatus } from "@/lib/api";
 import type { StatusResponse } from "@/lib/types";
+import { ServiceLogo, type Service } from "./ServiceLogo";
 
-const SCOPE_LABELS: Record<string, string> = {
+const SCOPE_LABELS: Record<Service, string> = {
   drive: "Drive",
   ga4: "GA4",
-  gsc: "GSC",
+  gsc: "Search Console",
 };
 
-const SCOPE_TOOLTIPS: Record<string, string> = {
+const SCOPE_TOOLTIPS: Record<Service, string> = {
   drive: "https://www.googleapis.com/auth/drive.readonly",
   ga4: "https://www.googleapis.com/auth/analytics.readonly",
   gsc: "https://www.googleapis.com/auth/webmasters.readonly",
@@ -58,14 +59,21 @@ export function ConnectionPills() {
     <div className="flex items-center gap-2">
       {(["drive", "ga4", "gsc"] as const).map((key) => {
         const state = status?.[key] ?? "not_connected";
+        const dim = state !== "connected";
         return (
           <span
             key={key}
             title={`${SCOPE_LABELS[key]} — ${state.replace("_", " ")}\n${SCOPE_TOOLTIPS[key]}`}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2.5 py-1 text-xs text-muted dark:text-muted-dark"
+            className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2.5 py-1 text-xs text-muted dark:text-muted-dark"
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${dotColor(state)}`} />
-            <span className="font-medium">{SCOPE_LABELS[key]}</span>
+            <span
+              className="inline-flex items-center"
+              style={{ opacity: dim ? 0.4 : 1 }}
+            >
+              <ServiceLogo service={key} size={16} />
+            </span>
+            <span className="font-medium ml-1">{SCOPE_LABELS[key]}</span>
+            <span className={`ml-1 h-1.5 w-1.5 rounded-full ${dotColor(state)}`} />
           </span>
         );
       })}

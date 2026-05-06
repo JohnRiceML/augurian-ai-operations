@@ -6,8 +6,80 @@
 // reader needs.
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ToolCallCard } from "./ToolCallCard";
 import type { Message as Msg } from "@/lib/types";
+
+// Tailwind class overrides for assistant markdown. Tight type sizes and
+// generous line-height — no `prose` plugin, this is the whole list.
+const MD_COMPONENTS = {
+  h1: (props: any) => (
+    <h1 className="text-[20px] font-semibold mt-3 mb-1" {...props} />
+  ),
+  h2: (props: any) => (
+    <h2 className="text-[17px] font-semibold mt-3 mb-1" {...props} />
+  ),
+  h3: (props: any) => (
+    <h3 className="text-[15px] font-semibold mt-3 mb-1" {...props} />
+  ),
+  p: (props: any) => (
+    <p className="text-[15px] leading-relaxed my-2" {...props} />
+  ),
+  ul: (props: any) => (
+    <ul className="list-disc pl-5 my-2 space-y-1" {...props} />
+  ),
+  ol: (props: any) => (
+    <ol className="list-decimal pl-5 my-2 space-y-1" {...props} />
+  ),
+  li: (props: any) => (
+    <li className="text-[15px] leading-relaxed" {...props} />
+  ),
+  a: (props: any) => (
+    <a className="text-augur-orange hover:underline" {...props} />
+  ),
+  strong: (props: any) => (
+    <strong className="font-semibold text-ink dark:text-ink-dark" {...props} />
+  ),
+  // Inline code vs fenced code: react-markdown passes `inline` boolean.
+  code: ({ inline, className, children, ...rest }: any) => {
+    if (inline) {
+      return (
+        <code
+          className="font-mono text-[13px] px-1.5 py-0.5 rounded bg-[color:var(--bg)] border border-[color:var(--border)]"
+          {...rest}
+        >
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code className={className} {...rest}>
+        {children}
+      </code>
+    );
+  },
+  pre: (props: any) => (
+    <pre
+      className="font-mono text-[12.5px] p-3 rounded-md bg-[color:var(--bg)] border border-[color:var(--border)] overflow-x-auto my-2"
+      {...props}
+    />
+  ),
+  table: ({ children, ...rest }: any) => (
+    <div className="overflow-x-auto my-2">
+      <table className="text-[14px]" {...rest}>
+        {children}
+      </table>
+    </div>
+  ),
+  th: (props: any) => (
+    <th
+      className="text-left font-semibold border-b border-[color:var(--border)] py-1.5 pr-4"
+      {...props}
+    />
+  ),
+  td: (props: any) => <td className="py-1.5 pr-4 align-top" {...props} />,
+};
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -75,7 +147,14 @@ export function Message({ message }: { message: Msg }) {
             </div>
           )}
           {message.content && (
-            <div className="prose-msg">{message.content}</div>
+            <div className="text-ink dark:text-ink-dark break-words">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={MD_COMPONENTS}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
           )}
           {message.error && !message.content && (
             <div className="text-rose-600 dark:text-rose-400 text-[13.5px]">
