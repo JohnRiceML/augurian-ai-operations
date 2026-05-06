@@ -9,9 +9,14 @@ import { Children, isValidElement, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AnimatePresence, motion } from "framer-motion";
 import { ToolCallCard } from "./ToolCallCard";
+import { ProcessCallout } from "./ProcessCallout";
 import type { Message as Msg } from "@/lib/types";
 import { findCitations, type Citation } from "@/lib/citations";
+
+// Shared easing for tool-card stagger entry.
+const STAGGER_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 // Sentinel format used for citation replacement. We pick a syntax that's
 // safe inside markdown — square brackets are common, but `[[CIT:N]]`
@@ -316,11 +321,29 @@ export function Message({ message, onCitationClick }: MessageProps) {
           style={{ boxShadow: "var(--shadow-card)" }}
         >
           {hasTools && (
-            <div className="mb-3 space-y-1.5">
-              {message.toolCalls!.map((tc) => (
-                <ToolCallCard key={tc.id} call={tc} />
-              ))}
-            </div>
+            <>
+              <ProcessCallout toolCalls={message.toolCalls!} />
+              <div className="mb-3 space-y-1.5">
+                <AnimatePresence initial={false}>
+                  {message.toolCalls!.map((tc, i) => (
+                    <motion.div
+                      key={tc.id}
+                      layout
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{
+                        duration: 0.22,
+                        ease: STAGGER_EASE,
+                        delay: i * 0.06,
+                      }}
+                    >
+                      <ToolCallCard call={tc} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </>
           )}
           {showShimmer && (
             <div className="flex items-center gap-2 text-muted dark:text-muted-dark">
