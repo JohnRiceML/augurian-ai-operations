@@ -30,6 +30,8 @@ This is what scales for the team. "Easier global connections" is exactly what th
 |---|---|
 | Ad-hoc work right now, no waiting on infra | Claude.ai + paste-ready skills |
 | One-off question from a phone, on the road | Claude.ai mobile app + skills |
+| Live ad-hoc GA4 / GSC queries | Streamlit chat (`scripts/web_chat.py`) |
+| Scheduled GA4 / GSC pulls | Production via `pipelines/*_puller.py` + Cloud Run |
 | Scheduled / triggered runs (e.g., "every Monday morning") | Augurbot |
 | Slack-native workflow (ask in channel, get answer in channel) | Augurbot |
 | Audit trail for compliance / partner review | Augurbot |

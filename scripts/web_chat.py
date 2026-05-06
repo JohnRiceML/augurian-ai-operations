@@ -54,22 +54,30 @@ def _load_sibling(name: str) -> Any:
 _ask = _load_sibling("ask")
 _walkthrough = _load_sibling("fireflies_walkthrough")
 
-TOOLS = _ask.TOOLS
 CLAUDE_MODEL = _ask.CLAUDE_MODEL
 PROCESSED_DIR = _ask.PROCESSED_DIR
 RAW_FIREFLY_DIR = _ask.RAW_FIREFLY_DIR
 _anthropic = _ask._anthropic
 _apply_corrections = _ask._apply_corrections
 _load_corrections = _ask._load_corrections
-_system_prompt = _ask._system_prompt
+detect_corruption = _walkthrough.detect_corruption
 tool_get_meeting_details = _ask.tool_get_meeting_details
 tool_list_meetings_local = _ask.tool_list_meetings
 tool_query_commitments = _ask.tool_query_commitments
-detect_corruption = _walkthrough.detect_corruption
 
 CREDS_DIR = REPO_ROOT / "credentials"
 TOKEN_FILE = CREDS_DIR / "drive_token.json"
-DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+# All three scopes are requested at auth time. We list them here so
+# `_load_creds` loads a token that knows about all three; if the user has
+# only granted a subset (older token), the sidebar will show which are missing.
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/analytics.readonly",
+    "https://www.googleapis.com/auth/webmasters.readonly",
+]
+DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+GA4_SCOPE = "https://www.googleapis.com/auth/analytics.readonly"
+GSC_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 AUTH_CMD = "python scripts/fireflies_walkthrough.py auth"
 REPO_URL = "https://github.com/JohnRiceML/augurian-ai-operations"
 
@@ -77,13 +85,18 @@ REPO_URL = "https://github.com/JohnRiceML/augurian-ai-operations"
 # ----------------------------- Drive helpers -----------------------------
 
 def _load_creds():
-    """Load saved Drive credentials. Refresh in-place if expired. Returns None if no token."""
+    """Load saved Google credentials. Refresh in-place if expired. Returns None if no token.
+
+    Same token covers Drive + GA4 + GSC because the CLI's `auth` command requests
+    all three scopes in a single OAuth flow. The sidebar inspects `creds.scopes`
+    to show which APIs are usable in this session.
+    """
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
 
     if not TOKEN_FILE.exists():
         return None
-    creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), DRIVE_SCOPES)
+    creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), GOOGLE_SCOPES)
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
@@ -92,6 +105,20 @@ def _load_creds():
             st.session_state["drive_error"] = f"Token refresh failed: {exc}"
             return None
     return creds
+
+
+def _ga4_client(creds):
+    """Build an authenticated GA4 Data API client."""
+    from google.analytics.data_v1beta import BetaAnalyticsDataClient
+
+    return BetaAnalyticsDataClient(credentials=creds)
+
+
+def _gsc_service(creds):
+    """Build an authenticated Search Console v1 service."""
+    from googleapiclient.discovery import build
+
+    return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
 def _drive_service():
@@ -276,34 +303,245 @@ def tool_read_meeting_transcript(args: dict[str, Any]) -> dict[str, Any]:
     return _drive_read(args["client"], args["meeting_slug"], "transcript")
 
 
+# ----------------------------- Live Google API tools -----------------------------
+#
+# These two tools hit Google's APIs directly using the same OAuth creds the
+# Drive tools use. They live in web_chat.py only — the CLI (`scripts/ask.py`)
+# stays file-backed so its tests + plumbing don't depend on network calls.
+
+def tool_query_ga4(args: dict[str, Any], creds) -> dict[str, Any]:
+    """Run a GA4 RunReport against one property."""
+    try:
+        from google.analytics.data_v1beta.types import (
+            DateRange,
+            Dimension,
+            Metric,
+            RunReportRequest,
+        )
+
+        client = _ga4_client(creds)
+        req = RunReportRequest(
+            property=f"properties/{args['property_id']}",
+            metrics=[Metric(name=m) for m in args["metrics"]],
+            dimensions=[Dimension(name=d) for d in args.get("dimensions", [])],
+            date_ranges=[
+                DateRange(start_date=args["start_date"], end_date=args["end_date"])
+            ],
+            limit=args.get("limit", 25),
+        )
+        resp = client.run_report(req)
+        return {
+            "row_count": len(resp.rows),
+            "totals": [
+                {
+                    m.name: v.value
+                    for m, v in zip(resp.metric_headers, totals.metric_values)
+                }
+                for totals in resp.totals
+            ],
+            "rows": [
+                {
+                    "dimensions": {
+                        dh.name: dv.value
+                        for dh, dv in zip(resp.dimension_headers, r.dimension_values)
+                    },
+                    "metrics": {
+                        mh.name: mv.value
+                        for mh, mv in zip(resp.metric_headers, r.metric_values)
+                    },
+                }
+                for r in resp.rows
+            ],
+        }
+    except Exception as exc:
+        return {"error": f"ga4 query failed: {type(exc).__name__}: {exc}"}
+
+
+def tool_query_gsc(args: dict[str, Any], creds) -> dict[str, Any]:
+    """Run a Search Console searchanalytics.query for one site."""
+    try:
+        svc = _gsc_service(creds)
+        body: dict[str, Any] = {
+            "startDate": args["start_date"],
+            "endDate": args["end_date"],
+            "dimensions": args.get("dimensions", ["query"]),
+            "rowLimit": args.get("row_limit", 25),
+        }
+        qf = args.get("query_filter")
+        if qf:
+            body["dimensionFilterGroups"] = [
+                {
+                    "filters": [
+                        {
+                            "dimension": "query",
+                            "operator": "contains",
+                            "expression": qf,
+                        }
+                    ]
+                }
+            ]
+        resp = (
+            svc.searchanalytics()
+            .query(siteUrl=args["site_url"], body=body)
+            .execute()
+        )
+        rows = resp.get("rows", [])
+        return {
+            "row_count": len(rows),
+            "rows": [
+                {
+                    "keys": r.get("keys", []),
+                    "clicks": r.get("clicks", 0),
+                    "impressions": r.get("impressions", 0),
+                    "ctr": round(r.get("ctr", 0.0), 4),
+                    "position": round(r.get("position", 0.0), 2),
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        return {"error": f"gsc query failed: {type(exc).__name__}: {exc}"}
+
+
+# ----------------------------- Tool registry -----------------------------
+
+# Extra tool schemas that this runtime adds on top of `_ask.TOOLS`. Live API
+# tools — Drive credentials are required to actually run them.
+WEB_EXTRA_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "query_ga4",
+        "description": (
+            "Run a Google Analytics 4 report for one property. Live API call. "
+            "Use when the user asks about traffic, sessions, conversions, "
+            "engagement, page-level performance over a date range. Returns "
+            "rows + totals. Do not use for keyword/search-query data — that's "
+            "Search Console."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "property_id": {
+                    "type": "string",
+                    "description": "GA4 property ID (numeric, no 'properties/' prefix)",
+                },
+                "metrics": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "GA4 metric names. Common: sessions, screenPageViews, "
+                        "totalUsers, conversions, engagementRate."
+                    ),
+                },
+                "dimensions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional GA4 dimension names. Common: date, pagePath, "
+                        "sessionDefaultChannelGroup, country."
+                    ),
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD or relative like '7daysAgo'.",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD or 'today'.",
+                },
+                "limit": {"type": "integer", "default": 25},
+            },
+            "required": ["property_id", "metrics", "start_date", "end_date"],
+        },
+    },
+    {
+        "name": "query_gsc",
+        "description": (
+            "Run a Google Search Console search-analytics query for one site. "
+            "Live API call. Use when the user asks about search queries, "
+            "rankings, impressions, click-through rate, or page-level search "
+            "performance. Returns rows with clicks/impressions/ctr/position."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "site_url": {
+                    "type": "string",
+                    "description": (
+                        "Verified GSC site URL, including trailing slash. e.g. "
+                        "'https://example.com/' or 'sc-domain:example.com'."
+                    ),
+                },
+                "dimensions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["query", "page", "country", "device", "date"],
+                    },
+                    "default": ["query"],
+                },
+                "start_date": {"type": "string", "description": "YYYY-MM-DD."},
+                "end_date": {"type": "string", "description": "YYYY-MM-DD."},
+                "row_limit": {"type": "integer", "default": 25},
+                "query_filter": {
+                    "type": "string",
+                    "description": (
+                        "Optional substring filter on the 'query' dimension."
+                    ),
+                },
+            },
+            "required": ["site_url", "start_date", "end_date"],
+        },
+    },
+]
+
+# Merge: keep the original 5 file-backed tools, append the 2 live-API ones.
+# The original `_ask.TOOLS` list stays untouched so the CLI keeps working.
+WEB_TOOLS: list[dict[str, Any]] = list(_ask.TOOLS) + WEB_EXTRA_TOOLS
+
+# Live-API tools need authenticated creds, which the file-backed tools do not.
+# We pick the contract: file-backed tools take (args), live tools take
+# (args, creds). The dispatch in `_run_agent_turn` branches on tool name. This
+# avoids wrapping every existing tool just to ignore an unused argument and
+# keeps the call sites readable.
 TOOL_RUNNERS = {
     "query_commitments": tool_query_commitments,
     "get_meeting_details": tool_get_meeting_details,
     "list_meetings": tool_list_meetings,
     "read_meeting_summary": tool_read_meeting_summary,
     "read_meeting_transcript": tool_read_meeting_transcript,
+    "query_ga4": tool_query_ga4,
+    "query_gsc": tool_query_gsc,
 }
+LIVE_API_TOOLS = {"query_ga4", "query_gsc"}
 
 
 # ----------------------------- UI helpers -----------------------------
 
 def _render_setup_screen() -> None:
-    st.markdown(
-        """
-        <div style="max-width:560px;margin:5rem auto;padding:2rem;border:1px solid #ddd;
-        border-radius:12px;background:#fafafa;">
-          <h2 style="margin-top:0;">Drive not connected</h2>
-          <p>This app reuses the CLI's Drive token. Run the one-time auth command first:</p>
-          <pre style="background:#111;color:#eee;padding:1rem;border-radius:6px;">""" + AUTH_CMD + """</pre>
-          <p>Once you authorize in your browser, the token persists in
-          <code>credentials/drive_token.json</code>. Then come back here and click
-          <strong>Reload</strong>.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button("Reload"):
-        st.rerun()
+    """Centered setup card. Uses native Streamlit components so the colors
+    follow the user's theme (light or dark) instead of inheriting unreadable
+    contrast from a hardcoded card background."""
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid:
+        st.title("Drive not connected")
+        st.write(
+            "This app reuses the CLI's Drive token. Run the one-time auth "
+            "command first:"
+        )
+        st.code(AUTH_CMD, language="bash")
+        st.write(
+            "Once you authorize in your browser, the token persists in "
+            "`credentials/drive_token.json`. Then come back here and click "
+            "**Reload**."
+        )
+        st.write("")
+        if st.button("Reload", type="primary", use_container_width=True):
+            st.rerun()
+        st.caption(
+            "Don't have OAuth credentials yet? "
+            "See `scripts/fireflies_walkthrough.py auth --help` for the GCP "
+            "console steps (5 minutes, one-time)."
+        )
 
 
 def _render_tool_block(name: str, args: dict[str, Any], result: dict[str, Any]) -> None:
@@ -326,10 +564,51 @@ def _render_tool_block(name: str, args: dict[str, Any], result: dict[str, Any]) 
             st.info(f"Applied {len(applied)} spelling correction(s), {total} total replacement(s).")
 
 
+def _web_system_prompt() -> str:
+    """Augment the file-backed system prompt with rules for the live GA4/GSC tools.
+
+    We don't modify scripts/ask.py (its CLI doesn't have these tools) — we
+    just append a section so the chat agent knows when to reach for live data
+    vs. the meeting tools.
+    """
+    base = _ask._system_prompt()
+    extra = """
+
+# Live Google API tools (this runtime only)
+
+You ALSO have two live API tools that hit Google's APIs directly:
+
+- **`query_ga4(property_id, metrics, dimensions, start_date, end_date)`** —
+  GA4 traffic + engagement reports. Use for: sessions, page views, users,
+  conversions, traffic sources, engagement rates, page-level performance.
+  Do NOT use for keyword/search-query data — that's GSC.
+
+- **`query_gsc(site_url, dimensions, start_date, end_date, query_filter?)`** —
+  Search Console search-analytics. Use for: search queries the site ranks
+  for, rankings, impressions, CTR, page-level search performance.
+
+When to use these vs. the meeting tools:
+- The meeting tools (query_commitments, get_meeting_details, read_meeting_*)
+  answer "what did we say / decide / commit to."
+- The live API tools answer "what's the actual performance data."
+- A question like "did the SEO change we discussed in the May call work?"
+  uses BOTH — read the May call to find the change, then query GSC for
+  the page that changed.
+
+The user must provide property_id (GA4) or site_url (GSC) — these are
+client-specific and live in pipelines/clients.yaml. If they're not given
+in the question and not in chat history, ask the user before guessing.
+"""
+    return base + extra
+
+
 def _run_agent_turn(user_question: str, client: str) -> None:
     """Run the tool-use loop until end_turn. Streams tool calls into the UI."""
     anthropic = _anthropic()
-    system = _system_prompt()
+    system = _web_system_prompt()
+    # Live-API tools need creds. File-backed tools don't. We resolve creds
+    # once per turn — they may be None if the user revoked access mid-session.
+    creds = _load_creds()
 
     # Convert prior visible turns into the API message shape, then append the new user question.
     api_messages: list[dict[str, Any]] = []
@@ -352,7 +631,7 @@ def _run_agent_turn(user_question: str, client: str) -> None:
             model=CLAUDE_MODEL,
             max_tokens=4096,
             system=system,
-            tools=TOOLS,
+            tools=WEB_TOOLS,
             messages=api_messages,
         )
         st.session_state.tokens_in += resp.usage.input_tokens
@@ -386,7 +665,18 @@ def _run_agent_turn(user_question: str, client: str) -> None:
                 result = {"error": f"unknown tool '{tu.name}'"}
             else:
                 try:
-                    result = runner(tu.input)
+                    if tu.name in LIVE_API_TOOLS:
+                        if creds is None:
+                            result = {
+                                "error": (
+                                    "Google credentials unavailable. Re-run "
+                                    "`python scripts/fireflies_walkthrough.py auth`."
+                                )
+                            }
+                        else:
+                            result = runner(tu.input, creds)
+                    else:
+                        result = runner(tu.input)
                 except Exception as exc:
                     result = {"error": str(exc)}
             assistant_record["tool_calls"].append(
@@ -421,7 +711,32 @@ def _render_sidebar() -> tuple[str, bool]:
         creds = _load_creds()
         drive_ok = creds is not None
         if drive_ok:
-            st.success("Drive: connected")
+            granted = set(getattr(creds, "scopes", None) or [])
+
+            def _has(scope: str) -> bool:
+                return scope in granted
+
+            if _has(DRIVE_SCOPE):
+                st.success("Drive: connected")
+            else:
+                st.error("Drive: scope not granted")
+            if _has(GA4_SCOPE):
+                st.success("GA4: connected")
+            else:
+                st.warning(
+                    "GA4: scope not granted — re-run "
+                    "`python scripts/fireflies_walkthrough.py auth` to grant "
+                    "additional scopes."
+                )
+            if _has(GSC_SCOPE):
+                st.success("GSC: connected")
+            else:
+                st.warning(
+                    "GSC: scope not granted — re-run "
+                    "`python scripts/fireflies_walkthrough.py auth` to grant "
+                    "additional scopes."
+                )
+
             expiry = getattr(creds, "expiry", None)
             if expiry is not None:
                 st.caption(f"Access token expiry: {expiry.isoformat()}")

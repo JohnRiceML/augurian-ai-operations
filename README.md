@@ -56,6 +56,8 @@ Open a new Claude.ai chat → paste the skill → add your input (meeting title,
 
 > The skills are the same agent reasoning that runs in `scripts/ask.py` and (eventually) the production orchestrator. As the orchestrator comes online, the skills become a fallback — the production path will route through Slack with audit + notion logging, but the skills stay useful for ad-hoc work.
 
+For engineers running the local Streamlit chat (`streamlit run scripts/web_chat.py`), the same OAuth flow that grants Drive access also grants live **Google Analytics 4** and **Search Console** access — one consent dance, three live tools (`query_ga4`, `query_gsc`, plus the Drive-backed meeting tools). Run `python scripts/fireflies_walkthrough.py auth` once and the chat agent can mix "what did we commit to" answers with live performance data.
+
 ---
 
 ## What is this, in plain English

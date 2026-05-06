@@ -62,7 +62,15 @@ RAW_DIR = DATA_DIR / "raw" / "firefly"
 PROCESSED_DIR = DATA_DIR / "processed" / "commitments"
 
 # ---------- Config ----------
-DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+# One OAuth flow, three Google APIs. Drive (Fireflies PDFs), GA4 (analytics
+# data), and Search Console (search-analytics) all live behind the same
+# Desktop-app OAuth client. The `auth` command requests them all up front so
+# the user does the consent dance exactly once.
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/analytics.readonly",
+    "https://www.googleapis.com/auth/webmasters.readonly",
+]
 EXTRACTOR_AGENT_PATH = REPO_ROOT / ".claude" / "agents" / "fireflies-extractor.md"
 EXTRACTION_RULES_PATH = REPO_ROOT / ".claude" / "skills" / "fireflies-extraction-rules" / "SKILL.md"
 CLAUDE_MODEL = "claude-opus-4-7"
@@ -76,9 +84,30 @@ def _drive_service():
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
 
+    creds = _load_or_create_creds()
+    return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+
+def _load_or_create_creds():
+    """Load saved Google creds, refreshing or running the OAuth flow as needed.
+
+    Returns a Credentials object covering all of GOOGLE_SCOPES. If the on-disk
+    token was minted with a narrower scope set (e.g. an older Drive-only token),
+    we force a re-auth so the chat web app's GA4 + GSC tools work too.
+    """
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import InstalledAppFlow
+
     creds = None
     if TOKEN_FILE.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), DRIVE_SCOPES)
+        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), GOOGLE_SCOPES)
+        # If the saved token was minted before we expanded scopes, the granted
+        # set will be a subset of GOOGLE_SCOPES. Force a fresh OAuth dance so
+        # GA4 + GSC become callable without the user noticing a silent failure.
+        granted = set(getattr(creds, "scopes", None) or [])
+        if not granted.issuperset(GOOGLE_SCOPES):
+            creds = None
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -88,12 +117,12 @@ def _drive_service():
                     f"Missing {OAUTH_CLIENT_FILE}. See `auth --help` for setup."
                 )
             flow = InstalledAppFlow.from_client_secrets_file(
-                str(OAUTH_CLIENT_FILE), DRIVE_SCOPES
+                str(OAUTH_CLIENT_FILE), GOOGLE_SCOPES
             )
             creds = flow.run_local_server(port=0)
         TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
         TOKEN_FILE.write_text(creds.to_json())
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    return creds
 
 
 def _anthropic():
@@ -139,13 +168,22 @@ def cli() -> None:
 def auth() -> None:
     """Run OAuth once. Saves a refresh token to credentials/drive_token.json.
 
+    One consent dance covers Drive + GA4 + Search Console — the chat web app
+    (`scripts/web_chat.py`) reuses the same token to make live API calls.
+
     Setup BEFORE running this:
 
       1. https://console.cloud.google.com → New Project (or pick existing)
-      2. APIs & Services → Library → enable "Google Drive API"
+      2. APIs & Services → Library → enable ALL THREE:
+           - "Google Drive API"
+           - "Google Analytics Data API"  (for GA4)
+           - "Google Search Console API"
       3. APIs & Services → OAuth consent screen
            - User type: Internal (avoids 7-day refresh-token expiry)
-           - Add scope: .../auth/drive.readonly
+           - Add scopes:
+               .../auth/drive.readonly
+               .../auth/analytics.readonly
+               .../auth/webmasters.readonly
       4. APIs & Services → Credentials → Create Credentials → OAuth client ID
            - Application type: Desktop app
            - Download JSON → save as credentials/oauth_client.json
@@ -160,10 +198,25 @@ def auth() -> None:
     svc = _drive_service()
     about = svc.about().get(fields="user(emailAddress,displayName)").execute()
     user = about.get("user", {})
-    click.echo(
-        f"Authenticated as {user.get('displayName')} <{user.get('emailAddress')}>"
+    email = user.get("emailAddress", "(unknown)")
+    name = user.get("displayName", "(unknown)")
+    click.secho(
+        f"\n✓ Authenticated as {name} <{email}>",
+        fg="green",
     )
-    click.echo(f"Token saved to {TOKEN_FILE}")
+    click.echo(f"  Token saved to {TOKEN_FILE}")
+    click.echo("\nScopes granted:")
+    for scope in GOOGLE_SCOPES:
+        label = {
+            "https://www.googleapis.com/auth/drive.readonly": "Drive (read-only)",
+            "https://www.googleapis.com/auth/analytics.readonly": "Google Analytics 4 (read-only)",
+            "https://www.googleapis.com/auth/webmasters.readonly": "Search Console (read-only)",
+        }.get(scope, scope)
+        click.echo(f"  • {label}")
+    click.echo(
+        "\nNext: launch the chat web app (`streamlit run scripts/web_chat.py`). "
+        "Drive, GA4, and GSC tools are all live."
+    )
 
 
 @cli.command(name="list")
