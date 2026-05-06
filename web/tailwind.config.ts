@@ -13,25 +13,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        cream: "#FAF6EE",
-        ink: "#1F2937",
-        // The Augurian orange is the only saturated color in the palette;
-        // everything else is neutral. Use it sparingly — primary action
-        // affordances and one or two highlights, never as a section bg.
+        // Augurian.com palette. Class names kept (`augur-orange`,
+        // `augur-orange-700`) for code-stability across components even
+        // though the brand accent is now blue, not orange.
+        cream: "#F8FAFC",
+        ink: "#1A1A1A",
         augur: {
-          orange: "#E8964D",
-          "orange-700": "#D27E36",
+          orange: "#0066CC",        // Augurian medium blue (CTAs, focus rings)
+          "orange-700": "#003366",  // Augurian deep navy (hover, active)
         },
-        "ink-dark": "#F5F0E8",
-        "bg-dark": "#1A1612",
-        "surface-dark": "#2A2419",
+        "ink-dark": "#F0F4F8",
+        "bg-dark": "#0A1628",
+        "surface-dark": "#14253D",
         border: {
-          DEFAULT: "#E5DFD2",
-          dark: "#3A3225",
+          DEFAULT: "#E5EAF0",
+          dark: "#1F3656",
         },
         muted: {
           DEFAULT: "#5B6F7A",
-          dark: "#BFB8AA",
+          dark: "#8A9AB0",
         },
       },
       fontFamily: {

@@ -8,23 +8,26 @@
  * `prefers-color-scheme` — no manual toggle in v1.
  */
 :root {
-  --bg: #faf6ee;
-  --surface: #ffffff;
-  --ink: #1f2937;
+  --bg: #ffffff;
+  --surface: #f8fafc;
+  --ink: #1a1a1a;
   --muted: #5b6f7a;
-  --border: #e5dfd2;
-  --augur-orange: #e8964d;
-  --augur-orange-700: #d27e36;
+  --border: #e5eaf0;
+  /* Augurian-blue accent (was orange — class names kept for code stability) */
+  --augur-orange: #0066cc;
+  --augur-orange-700: #003366;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1a1612;
-    --surface: #2a2419;
-    --ink: #f5f0e8;
-    --muted: #bfb8aa;
-    --border: #3a3225;
+    --bg: #0a1628;
+    --surface: #14253d;
+    --ink: #f0f4f8;
+    --muted: #8a9ab0;
+    --border: #1f3656;
+    --augur-orange: #4d9fff;
+    --augur-orange-700: #0066cc;
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
   }
 }
