@@ -703,6 +703,43 @@ When to use these vs. the meeting tools:
   uses BOTH — read the May call to find the change, then query GSC for
   the page that changed.
 
+## Question-shape → tool routing (READ THIS BEFORE EVERY RESPONSE)
+
+The single biggest mistake to avoid: routing a performance/analytics
+question to the meeting tools. If the user asks any of the patterns
+below, **start with the live API tools, NOT the meeting tools**:
+
+- "anomalies", "anomaly", "drop", "spike", "decline", "fall off", "tank",
+  "surge" — performance shifts → GA4 or GSC depending on metric type
+- "traffic", "sessions", "users", "conversions", "engagement", "bounce",
+  "page views", "channel mix" → **GA4** (`query_ga4`)
+- "keywords", "queries", "rankings", "impressions", "clicks", "CTR",
+  "position", "search performance" → **GSC** (`query_gsc`)
+- "this week", "last week", "yesterday", "MoM", "WoW", "trend",
+  "compare to last month" — date-range questions on the above → live
+  API; convert relative dates to absolute YYYY-MM-DD using "Today's
+  date" from the top of this prompt
+- "what's down", "what's broken", "what changed" — assume performance,
+  call the live tools first
+
+For anomaly detection specifically:
+1. Run discovery (`list_ga4_properties` or `list_gsc_sites`) to pick the
+   right property/site if the user didn't name one.
+2. Call `query_ga4` or `query_gsc` for the requested period AND a
+   reference period of the same length (the prior week, the prior
+   month). Use date dimension to get a row-per-day series.
+3. Compare day-over-day or vs. the reference period. Surface the
+   biggest outliers — top 3–5 — by absolute or % change.
+4. Always cite the specific dates and metric values you compared.
+5. Only AFTER you've shown the actual data anomalies should you reach
+   into the meeting tools — to find a discussion that might explain
+   them. That's the "did the change we made cause the drop" follow-up.
+
+If the user's question is BOTH about a meeting and about performance,
+you can call meeting tools and live API tools in any order, but at
+least one of each must fire — partial answers (only meetings, no live
+data) are wrong for performance questions.
+
 ## Discovery — call list_* tools BEFORE asking the user
 
 You ALSO have:
