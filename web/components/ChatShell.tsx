@@ -63,10 +63,16 @@ export function ChatShell({
             className="flex items-center gap-2"
             aria-label="Augurian — agent home"
           >
-            {/* Inline word-mark; the SVG file in /public is the same asset. */}
-            <span className="font-semibold text-[16px] tracking-tight text-ink dark:text-ink-dark">
-              Augurian
-            </span>
+            {/* Real Augurian wordmark — triangle + "AUGURIAN" letters in
+             * one SVG. Public/logo.svg is the official brand asset
+             * (Adobe Illustrator export from the user's brand kit). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.svg"
+              alt="Augurian"
+              height={22}
+              style={{ height: 22, width: "auto" }}
+            />
             <span className="text-muted dark:text-muted-dark text-[14px]">— agent</span>
           </Link>
         </div>
