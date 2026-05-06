@@ -49,6 +49,10 @@ dev = [
     "mypy>=1.13.0",
     "types-PyYAML",
     "streamlit>=1.40",
+    # Polished web UI backend (FastAPI server reused by the Next.js front-end).
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sse-starlette>=2.1",
 ]
 
 [project.scripts]

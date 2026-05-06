@@ -58,6 +58,20 @@ Open a new Claude.ai chat → paste the skill → add your input (meeting title,
 
 For engineers running the local Streamlit chat (`streamlit run scripts/web_chat.py`), the same OAuth flow that grants Drive access also grants live **Google Analytics 4** and **Search Console** access — one consent dance, three live tools (`query_ga4`, `query_gsc`, plus the Drive-backed meeting tools). Run `python scripts/fireflies_walkthrough.py auth` once and the chat agent can mix "what did we commit to" answers with live performance data.
 
+### Run the polished UI locally
+
+For partner-facing demos, the Next.js front-end at `web/` is the polished surface. It talks to a small FastAPI server (`scripts/api.py`) that reuses the same agent loop as the Streamlit rig — same tools, same prompts, same Anthropic key. Streamlit stays as the dev/debug rig.
+
+```bash
+# terminal 1 — backend (reuses the existing OAuth token + Anthropic key)
+uvicorn scripts.api:app --port 8000 --reload
+
+# terminal 2 — front-end
+cd web && npm install && npm run dev   # opens on http://localhost:3000
+```
+
+OAuth is handled exactly as today — run `python scripts/fireflies_walkthrough.py auth` once, the FastAPI server reads the persisted token, and the connection pills in the top bar reflect Drive / GA4 / GSC scope status in real time.
+
 ---
 
 ## What is this, in plain English

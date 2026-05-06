@@ -58,3 +58,10 @@ audit-local/
 # Local Claude Code state
 .claude/settings.local.json
 .claude/.local/
+
+# Next.js front-end (web/) — node + build output
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+web/next-env.d.ts

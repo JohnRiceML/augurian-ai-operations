@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Palette + design tokens as CSS variables so raw CSS and Tailwind both
+ * have access. Light mode is the default; dark mode is purely
+ * `prefers-color-scheme` — no manual toggle in v1.
+ */
+:root {
+  --bg: #faf6ee;
+  --surface: #ffffff;
+  --ink: #1f2937;
+  --muted: #5b6f7a;
+  --border: #e5dfd2;
+  --augur-orange: #e8964d;
+  --augur-orange-700: #d27e36;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1612;
+    --surface: #2a2419;
+    --ink: #f5f0e8;
+    --muted: #bfb8aa;
+    --border: #3a3225;
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Subtle scrollbar — Apple-restrained, not invisible. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* Focus rings — keyboard-only, never noisy. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--augur-orange);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Markdown-ish content inside the assistant bubble. We don't pull in a
+ * full markdown renderer for v1 — the API streams plain text and we render
+ * paragraphs with whitespace preserved. Keep this tight; we'll graduate
+ * to a renderer if the agent starts emitting tables or code blocks the
+ * user actually needs to read. */
+.prose-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.prose-msg code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.92em;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+@media (prefers-color-scheme: dark) {
+  .prose-msg code {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
