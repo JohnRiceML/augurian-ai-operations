@@ -33,11 +33,11 @@ const SERVICE_LABELS: Record<Service, string> = {
 
 // Primary brand color used for the card border tint. Each service gets a
 // distinct hue so they're visually separable from each other AND from the
-// Augurian-blue user-message bubble.
+// Augurian-red user-message bubble.
 export const SERVICE_PRIMARY: Record<Service, string> = {
-  drive: "#4285F4",  // Drive blue
+  drive: "#0066DA",  // Drive blue (matches the canonical 2020 logo)
   ga4: "#F9AB00",    // GA4 orange
-  gsc: "#34A853",    // GSC green (was blue — clashed with Drive + accent)
+  gsc: "#34A853",    // GSC green (for visual separation from Drive blue)
 };
 
 export function serviceForTool(tool: string): Service {
@@ -68,24 +68,23 @@ export function ServiceLogo({
   return <GSCLogo size={size} className={className} />;
 }
 
-// Google Drive — yellow triangle (top-left) + green triangle (top-right) +
-// blue trapezoid (bottom). Three colors meeting in the canonical Drive shape.
+// Google Drive — canonical 2020 multicolor logo. Six paths sourced from
+// Wikimedia Commons (Google's brand-kit version).
 function DriveLogo({ size, className }: { size: number; className?: string }) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
+      viewBox="0 0 87.3 78"
       className={className}
       aria-hidden="true"
     >
-      {/* Yellow triangle (top-left wedge) */}
-      <path d="M8 3 L13 11 L3 11 Z" fill="#FBBC04" />
-      {/* Green triangle (top-right wedge) */}
-      <path d="M16 3 L21 11 L11 11 Z" fill="#0F9D58" />
-      {/* Blue trapezoid (bottom front face) */}
-      <path d="M3 11 L7 19 L17 19 L21 11 Z" fill="#4285F4" />
+      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
+      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47" />
+      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335" />
+      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
+      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
+      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
     </svg>
   );
 }
@@ -111,34 +110,19 @@ function GA4Logo({ size, className }: { size: number; className?: string }) {
   );
 }
 
-// Google Search Console — magnifying glass with a 3-bar chart inside.
-// Reads as "search analytics" rather than generic search.
+// Google Search Console — canonical SimpleIcons mark (Google's official
+// abstract Search-Console glyph: a server/monitor with a chart and gauge).
 function GSCLogo({ size, className }: { size: number; className?: string }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill="#458CF5"
       className={className}
       aria-hidden="true"
     >
-      {/* Magnifying glass lens */}
-      <circle cx="10" cy="10" r="6.5" stroke="#4285F4" strokeWidth="2" fill="#FFFFFF" />
-      {/* Bar chart inside, ascending: blue → green → yellow */}
-      <rect x="6.5" y="9.5" width="1.6" height="3" fill="#4285F4" />
-      <rect x="9.2" y="7.5" width="1.6" height="5" fill="#34A853" />
-      <rect x="11.9" y="6" width="1.6" height="6.5" fill="#FBBC04" />
-      {/* Magnifying handle */}
-      <line
-        x1="14.7"
-        y1="14.7"
-        x2="20"
-        y2="20"
-        stroke="#4285F4"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
+      <path d="M8.548 1.156L6.832 2.872v1.682h1.716zm0 3.398v.035H6.832v-.035H3.386L0 7.844v3.577h2.826V8.94c0-.525.429-.954.954-.954h16.476c.525 0 .954.43.954.954v2.48h2.754V7.844l-3.386-3.29H17.3v.035h-1.717v-.035zm7.035 0H17.3V2.872l-1.717-1.716zM8.679 1.188V2.84h6.773V1.188zm11.471 7.07a.834.834 0 00-.132.01l-.543.002c-5.216.014-10.432-.008-15.648.01-.435-.063-.794.436-.716.883v2.264h17.812c-.016-.888.045-1.782-.034-2.666-.104-.342-.427-.502-.739-.502zm-15.422.634a.689.698 0 01.689.698.689.698 0 01-.689.697.689.698 0 01-.688-.697.689.698 0 01.688-.698zm2.134 0a.689.698 0 01.689.698.689.698 0 01-.689.697.689.698 0 01-.688-.697.689.698 0 01.688-.698zM.036 11.645v9.156c0 1.05.858 1.908 1.907 1.908h.883V11.645zm21.174 0v11.064h.882c1.05 0 1.908-.858 1.908-1.908v-9.156zM4.057 13.133v6.85h6.137v-6.85zm13.243.021v3.777l-1.708.977-1.708-.977v-3.758a4.006 4.006 0 000 7.23v2.441h3.457v-2.442a4.006 4.006 0 00-.041-7.248zm-13.243 8.26v1.43h7.925v-1.43z" />
     </svg>
   );
 }

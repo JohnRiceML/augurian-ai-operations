@@ -13,25 +13,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Augurian.com palette. Class names kept (`augur-orange`,
-        // `augur-orange-700`) for code-stability across components even
-        // though the brand accent is now blue, not orange.
-        cream: "#F8FAFC",
-        ink: "#1A1A1A",
+        // Augurian.com palette — extracted from the official logo SVG and
+        // the live site. Class names kept (`augur-orange`,
+        // `augur-orange-700`) for code-stability; the actual accent is
+        // Augurian red.
+        cream: "#F7F5F2",          // warm off-white surface
+        ink: "#212020",            // Augurian wordmark dark
         augur: {
-          orange: "#0066CC",        // Augurian medium blue (CTAs, focus rings)
-          "orange-700": "#003366",  // Augurian deep navy (hover, active)
+          orange: "#C90000",        // Augurian red (logo + CTA)
+          "orange-700": "#A00000",  // deeper red (hover/active)
         },
-        "ink-dark": "#F0F4F8",
-        "bg-dark": "#0A1628",
-        "surface-dark": "#14253D",
+        "ink-dark": "#F5F5F5",
+        "bg-dark": "#1A1A1A",
+        "surface-dark": "#252525",
         border: {
-          DEFAULT: "#E5EAF0",
-          dark: "#1F3656",
+          DEFAULT: "#E5E2DD",
+          dark: "#3A3A3A",
         },
         muted: {
-          DEFAULT: "#5B6F7A",
-          dark: "#8A9AB0",
+          DEFAULT: "#5B6F7A",       // Augurian slate (header band)
+          dark: "#9A9A9A",
         },
       },
       fontFamily: {
