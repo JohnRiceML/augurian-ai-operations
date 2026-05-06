@@ -190,6 +190,13 @@ export default function SettingsPage() {
                     — NOT &quot;Google Analytics API&quot; (deprecated)
                   </span>
                 </li>
+                <li>
+                  • <code className="font-mono">Google Analytics Admin API</code>{" "}
+                  <span className="text-muted dark:text-muted-dark">
+                    — separate from Data API; needed for property
+                    discovery (list_ga4_properties)
+                  </span>
+                </li>
                 <li>• <code className="font-mono">Google Search Console API</code></li>
               </ul>
             </Step>
