@@ -159,19 +159,31 @@ function applyEvent(
   ev: import("@/lib/types").ChatEvent,
 ): Message[] {
   return updateAssistant(prev, assistantId, (m) => {
+    // iteration_start arms the "Reasoning..." indicator; every other event
+    // disarms it the moment it lands. Compute the cleared base once so each
+    // case below can spread it without repeating the field.
+    const cleared = { ...m, isReasoning: false } as Message;
     switch (ev.type) {
+      case "iteration_start":
+        return {
+          ...m,
+          currentIteration: ev.iteration,
+          isReasoning: true,
+        };
       case "tool_use": {
         const newCall: ToolCall = {
-          // We don't get tool_use_id from the server in events — we
-          // generate a client-side id keyed on order + name. That's
-          // enough to match the immediately-following tool_result.
-          id: `tc-${(m.toolCalls?.length ?? 0)}-${ev.name}`,
+          // Prefer the server-provided tool_use id (stable across the
+          // tool_use → tool_result pair). Fall back to a synthesized id
+          // for older servers that don't include one.
+          id:
+            (ev as { id?: string }).id ??
+            `tc-${(m.toolCalls?.length ?? 0)}-${ev.name}`,
           name: ev.name,
           args: ev.args,
           status: "running",
           started_at: new Date().toISOString(),
         };
-        return { ...m, toolCalls: [...(m.toolCalls ?? []), newCall] };
+        return { ...cleared, toolCalls: [...(m.toolCalls ?? []), newCall] };
       }
       case "tool_result": {
         // Match the most recent running call with this name. Server emits
@@ -195,13 +207,13 @@ function applyEvent(
           }
           return c;
         });
-        return { ...m, toolCalls: next };
+        return { ...cleared, toolCalls: next };
       }
       case "text_delta":
-        return { ...m, content: m.content + ev.text };
+        return { ...cleared, content: m.content + ev.text };
       case "done":
         return {
-          ...m,
+          ...cleared,
           pending: false,
           usage: {
             in: ev.tokens_in,
@@ -210,7 +222,7 @@ function applyEvent(
           },
         };
       case "error":
-        return { ...m, pending: false, error: ev.message };
+        return { ...cleared, pending: false, error: ev.message };
       default:
         return m;
     }

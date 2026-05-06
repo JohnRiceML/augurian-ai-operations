@@ -35,11 +35,24 @@ export interface Message {
   pending?: boolean;
   /** Set if the agent loop emitted an `error` SSE event. */
   error?: string;
+  /** Most recent iteration number reported by the server. */
+  currentIteration?: number;
+  /**
+   * True between an `iteration_start` event and the next event from the
+   * server (text_delta, tool_use, tool_result, done, or error). Signals
+   * the agent is reasoning about the next step — UI shows a quiet
+   * "Reasoning..." indicator. Cleared on the very next event.
+   */
+  isReasoning?: boolean;
 }
 
 // SSE event shapes from /api/chat. The server emits them as named events
 // with stringified JSON payloads; the client parser resolves to these.
 
+export interface IterationStartEvent {
+  type: "iteration_start";
+  iteration: number;
+}
 export interface ToolUseEvent {
   type: "tool_use";
   name: string;
@@ -68,6 +81,7 @@ export interface ErrorEvent {
 }
 
 export type ChatEvent =
+  | IterationStartEvent
   | ToolUseEvent
   | ToolResultEvent
   | TextDeltaEvent

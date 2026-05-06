@@ -368,6 +368,23 @@ def _truncate_for_event(obj: Any, limit: int = 500) -> Any:
     return {"_preview": s[:limit] + "…", "_truncated": True, "_full_len": len(s)}
 
 
+def _drain_stream(stream: Any, queue: "asyncio.Queue[Any]", loop: asyncio.AbstractEventLoop) -> None:
+    """Synchronous worker that pumps Anthropic stream events onto an asyncio queue.
+
+    Runs in a worker thread so the event loop stays free to ferry the events
+    to the SSE response while the SDK call blocks on the network. We push a
+    sentinel `None` when the stream is done so the consumer knows to stop
+    waiting.
+    """
+    try:
+        for event in stream:
+            asyncio.run_coroutine_threadsafe(queue.put(event), loop).result()
+    except Exception as exc:  # noqa: BLE001 — surface to consumer
+        asyncio.run_coroutine_threadsafe(queue.put(exc), loop).result()
+    finally:
+        asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
+
+
 async def _run_agent_stream(
     *,
     client: str,
@@ -380,14 +397,13 @@ async def _run_agent_stream(
     Yields dicts of shape {"event": str, "data": str}. The caller wraps them
     in EventSourceResponse so sse-starlette serializes them correctly.
 
-    We deliberately do NOT use Anthropic's streaming API here — the agent
-    loop iterates many tool calls per turn, and a non-streaming
-    messages.create per iteration is simpler + sufficient for the UX we
-    want (tool calls stream live; the final text appears in one chunk
-    after the last iteration). Switching to true token streaming is a
-    later optimization, not a v1 requirement.
+    Uses Anthropic's streaming API (`messages.stream`) so text_delta events
+    flow to the UI as soon as the model produces them, rather than batched
+    at the end of each iteration. Tool inputs arrive as partial-JSON
+    fragments; we accumulate per tool_use block and emit one `tool_use`
+    event with the parsed args when the block closes.
     """
-    anthropic = _anthropic()
+    anthropic_client = _anthropic()
     system = _web_system_prompt()
     creds = _load_creds()
     svc = _drive_service_for(creds)
@@ -408,37 +424,97 @@ async def _run_agent_stream(
 
     total_in = total_out = 0
     iteration = 0
+    loop = asyncio.get_running_loop()
 
     while iteration < max_iterations:
         iteration += 1
-        # The Anthropic SDK call is sync. Run it in a thread so we don't
-        # block the event loop while it waits for the API.
-        resp = await asyncio.to_thread(
-            anthropic.messages.create,
+        # Iteration boundary signal — the UI uses this to render a
+        # "Reasoning..." indicator between tool rounds.
+        yield {
+            "event": "iteration_start",
+            "data": json.dumps({"iteration": iteration}),
+        }
+
+        # Open the stream in a worker thread (the SDK call is synchronous)
+        # and pump events through an asyncio queue so this coroutine can
+        # forward them to the SSE response without blocking the loop.
+        cm = anthropic_client.messages.stream(
             model=CLAUDE_MODEL,
             max_tokens=4096,
             system=system,
             tools=WEB_TOOLS,
             messages=api_messages,
         )
-        total_in += resp.usage.input_tokens
-        total_out += resp.usage.output_tokens
+        stream = await asyncio.to_thread(cm.__enter__)
+        queue: asyncio.Queue[Any] = asyncio.Queue()
+        worker = asyncio.create_task(
+            asyncio.to_thread(_drain_stream, stream, queue, loop)
+        )
 
-        text_parts: list[str] = []
-        tool_uses: list[Any] = []
-        for block in resp.content:
-            if block.type == "text":
-                text_parts.append(block.text)
-            elif block.type == "tool_use":
-                tool_uses.append(block)
+        # Track the currently-open tool_use block. Anthropic delivers tool
+        # input as partial JSON chunks across many `input_json_delta`
+        # events; we buffer them and emit one tool_use event when the
+        # block closes.
+        current_tool_block: dict[str, Any] | None = None
+        accumulated_tool_input = ""
 
-        if resp.stop_reason == "end_turn":
-            text = "\n".join(p for p in text_parts if p.strip())
-            if text:
-                # We don't have token streaming wired up; emit the whole
-                # final answer as one delta. The UI is shaped to handle
-                # multiple deltas, so this is forward-compatible.
-                yield {"event": "text_delta", "data": json.dumps({"text": text})}
+        try:
+            while True:
+                event = await queue.get()
+                if event is None:
+                    break
+                if isinstance(event, Exception):
+                    raise event
+                et = event.type
+                if et == "content_block_start":
+                    block = event.content_block
+                    if block.type == "tool_use":
+                        current_tool_block = {"id": block.id, "name": block.name}
+                        accumulated_tool_input = ""
+                elif et == "content_block_delta":
+                    delta = event.delta
+                    if delta.type == "text_delta":
+                        # Forward immediately — the UI appends to the
+                        # streaming assistant message.
+                        yield {
+                            "event": "text_delta",
+                            "data": json.dumps({"text": delta.text}),
+                        }
+                    elif delta.type == "input_json_delta":
+                        accumulated_tool_input += delta.partial_json
+                elif et == "content_block_stop":
+                    if current_tool_block is not None:
+                        try:
+                            args = json.loads(accumulated_tool_input or "{}")
+                        except json.JSONDecodeError:
+                            args = {}
+                        yield {
+                            "event": "tool_use",
+                            "data": json.dumps(
+                                {
+                                    "id": current_tool_block["id"],
+                                    "name": current_tool_block["name"],
+                                    "args": args,
+                                }
+                            ),
+                        }
+                        current_tool_block = None
+                        accumulated_tool_input = ""
+                elif et == "message_stop":
+                    # The SDK still emits a few trailing events after this
+                    # (final usage on the message_delta), but for our
+                    # purposes we're done — get_final_message gives us
+                    # everything we need.
+                    pass
+            await worker
+            final = await asyncio.to_thread(stream.get_final_message)
+        finally:
+            await asyncio.to_thread(cm.__exit__, None, None, None)
+
+        total_in += final.usage.input_tokens
+        total_out += final.usage.output_tokens
+
+        if final.stop_reason == "end_turn":
             yield {
                 "event": "done",
                 "data": json.dumps(
@@ -451,23 +527,22 @@ async def _run_agent_stream(
             }
             return
 
-        if resp.stop_reason != "tool_use":
+        if final.stop_reason != "tool_use":
             yield {
                 "event": "error",
                 "data": json.dumps(
-                    {"message": f"Unexpected stop_reason: {resp.stop_reason}"}
+                    {"message": f"Unexpected stop_reason: {final.stop_reason}"}
                 ),
             }
             return
 
-        # Append the assistant turn so the next call sees it, then run the tools.
-        api_messages.append({"role": "assistant", "content": resp.content})
+        # Tool dispatch. We already emitted `tool_use` events as the
+        # blocks closed; now run the tools and emit `tool_result` events
+        # in the same order they appeared in the message.
+        tool_uses = [b for b in final.content if b.type == "tool_use"]
+        api_messages.append({"role": "assistant", "content": final.content})
         tool_results: list[dict[str, Any]] = []
         for tu in tool_uses:
-            yield {
-                "event": "tool_use",
-                "data": json.dumps({"name": tu.name, "args": tu.input}),
-            }
             runner = runners.get(tu.name)
             if runner is None:
                 result: dict[str, Any] = {"error": f"unknown tool '{tu.name}'"}

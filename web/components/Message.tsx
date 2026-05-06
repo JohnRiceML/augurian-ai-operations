@@ -407,6 +407,41 @@ function ThinkingDots() {
 }
 
 /**
+ * Same animation as ThinkingDots but with a "Reasoning" label. Shown
+ * between events from Anthropic — armed by an `iteration_start` SSE
+ * event and cleared the moment the next event lands. Slots between the
+ * tool cards (above) and the streaming prose (below), so the visual
+ * lives at the boundary where "what comes next" is open.
+ */
+function ReasoningDots() {
+  return (
+    <div
+      className="flex items-center gap-1.5 text-muted dark:text-muted-dark my-2"
+      aria-label="Agent is reasoning"
+      role="status"
+    >
+      <span className="text-[13px]">Reasoning</span>
+      <span className="inline-flex items-center gap-[3px]" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="inline-block h-[4px] w-[4px] rounded-full"
+            style={{ background: "currentColor" }}
+            animate={{ opacity: [0.3, 1, 0.3] }}
+            transition={{
+              duration: 1.0,
+              ease: "easeInOut",
+              repeat: Infinity,
+              delay: i * 0.2,
+            }}
+          />
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/**
  * Thin 1px-wide caret that follows the last streamed character. We use
  * an inline-block span so it sits on the text baseline of whatever
  * trailing inline element the markdown renderer produced, rather than
@@ -515,6 +550,15 @@ export function Message({ message, onCitationClick }: MessageProps) {
   const showThinkingDots = message.pending && !message.content && !hasTools;
   // Cursor caret while text is actively streaming in.
   const showCursor = message.pending && !!message.content;
+  // "Reasoning..." indicator: armed by iteration_start, cleared the moment
+  // any other event lands (text_delta, tool_use, tool_result, done, error
+  // — see applyEvent in page.tsx). Only meaningful AFTER something has
+  // already happened in this turn — for a fresh turn we still show
+  // "Thinking...". So gate on (hasTools || content > 0).
+  const showReasoningDots =
+    message.pending &&
+    !!message.isReasoning &&
+    (hasTools || message.content.length > 0);
   // Two pre-passes: widgets first, then citations. Both leave sentinels in
   // the markdown string that the renderer below swaps for components.
   // While streaming, we also append a CURSOR sentinel so the blinking
@@ -609,6 +653,7 @@ export function Message({ message, onCitationClick }: MessageProps) {
             </>
           )}
           {showThinkingDots && <ThinkingDots />}
+          {showReasoningDots && <ReasoningDots />}
           {message.content && (
             <div className="text-ink dark:text-ink-dark break-words">
               <ReactMarkdown

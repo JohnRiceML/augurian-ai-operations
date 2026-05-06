@@ -111,6 +111,8 @@ function parseEvent(raw: string): ChatEvent | null {
     return null;
   }
   switch (event) {
+    case "iteration_start":
+      return { type: "iteration_start", ...(data as { iteration: number }) };
     case "tool_use":
       return { type: "tool_use", ...(data as { name: string; args: Record<string, unknown> }) };
     case "tool_result":
