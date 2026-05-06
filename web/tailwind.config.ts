@@ -9,7 +9,12 @@ const config: Config = {
     "./components/**/*.{ts,tsx}",
     "./lib/**/*.{ts,tsx}",
   ],
-  darkMode: "media",
+  // "class" instead of "media" → dark: utility classes only fire when
+  // `dark` class is on <html>. Since we never add it in v1, the chat is
+  // light-mode-only, regardless of OS preference. Switch back to "media"
+  // to re-enable OS-following dark mode (and restore the dark CSS vars
+  // in app/globals.css).
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
