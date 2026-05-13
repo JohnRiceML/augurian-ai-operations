@@ -30,6 +30,7 @@ import importlib.util
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -68,6 +69,7 @@ def _load_sibling(name: str) -> Any:
 # both web_chat.py and api.py import from it.
 _ask = _load_sibling("ask")
 _web = _load_sibling("web_chat")
+_walkthrough = _load_sibling("fireflies_walkthrough")
 
 CLAUDE_MODEL = _ask.CLAUDE_MODEL
 WEB_TOOLS = _web.WEB_TOOLS
@@ -594,12 +596,73 @@ class ChatRequest(BaseModel):
 app = FastAPI(title="Augurian agent API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    # Tight: only the local Next.js dev server. Don't widen this without a real reason.
-    allow_origins=["http://localhost:3000"],
+    # Tight: only the local Next.js dev server (3000 default, 3001 when 3000 is taken).
+    # Don't widen this without a real reason.
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+
+
+# ----------------------------- Re-auth flow tracking -----------------------------
+#
+# When the OAuth token expires (External + Testing tokens die after 7 days),
+# the user needs to re-run the consent dance. The Settings page exposes a
+# "Re-authorize" button that POSTs /api/reauth. We run the OAuth flow in a
+# background thread (it blocks on a local HTTP server waiting for the
+# browser callback) and surface state via /api/status so the UI can poll.
+
+_reauth_lock = threading.Lock()
+_reauth_state: dict[str, Any] = {"state": "idle", "error": None}
+
+
+def _run_reauth_flow() -> None:
+    """Background-thread worker. Deletes stale token, runs OAuth, writes new token."""
+    global _reauth_state
+    try:
+        if _walkthrough.TOKEN_FILE.exists():
+            _walkthrough.TOKEN_FILE.unlink()
+        # Lazy import — google_auth_oauthlib is heavy.
+        from google_auth_oauthlib.flow import InstalledAppFlow
+
+        flow = InstalledAppFlow.from_client_secrets_file(
+            str(_walkthrough.OAUTH_CLIENT_FILE),
+            _walkthrough.GOOGLE_SCOPES,
+        )
+        # open_browser=True is the default but be explicit. Binds to a
+        # random local port; user's browser handles the redirect.
+        creds = flow.run_local_server(port=0, open_browser=True)
+        _walkthrough.TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _walkthrough.TOKEN_FILE.write_text(creds.to_json())
+        with _reauth_lock:
+            _reauth_state = {"state": "completed", "error": None}
+    except Exception as exc:
+        with _reauth_lock:
+            _reauth_state = {"state": "failed", "error": str(exc)}
+
+
+@app.post("/api/reauth", status_code=202)
+def reauth() -> dict[str, Any]:
+    """Kick off the OAuth flow in a background thread.
+
+    Returns 202 immediately. Browser opens on the user's machine (same
+    host as this server). Poll /api/status to detect completion.
+    """
+    global _reauth_state
+    with _reauth_lock:
+        if _reauth_state["state"] == "in_progress":
+            return {"state": "in_progress", "message": "already running"}
+        _reauth_state = {"state": "in_progress", "error": None}
+
+    thread = threading.Thread(target=_run_reauth_flow, daemon=True)
+    thread.start()
+    return {"state": "in_progress"}
+
+
+def _reauth_state_snapshot() -> dict[str, Any]:
+    with _reauth_lock:
+        return dict(_reauth_state)
 
 
 @app.get("/api/status")
@@ -608,6 +671,7 @@ def status() -> dict[str, Any]:
     creds = _load_creds()
     token_path_exists = _web.TOKEN_FILE.exists()
     user_email = os.environ.get("AUGUR_USER_EMAIL") or os.environ.get("USER_EMAIL")
+    reauth = _reauth_state_snapshot()
 
     if creds is None:
         return {
@@ -617,6 +681,8 @@ def status() -> dict[str, Any]:
             "gsc": "not_connected",
             "user_email": user_email,
             "token_path_exists": token_path_exists,
+            "reauth_state": reauth["state"],
+            "reauth_error": reauth["error"],
         }
 
     granted = set(getattr(creds, "scopes", None) or [])
@@ -631,6 +697,8 @@ def status() -> dict[str, Any]:
         "gsc": _state(_web.GSC_SCOPE),
         "user_email": user_email,
         "token_path_exists": token_path_exists,
+        "reauth_state": reauth["state"],
+        "reauth_error": reauth["error"],
     }
 
 

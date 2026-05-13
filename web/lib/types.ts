@@ -96,4 +96,11 @@ export interface StatusResponse {
   gsc: "connected" | "scope_missing" | "not_connected";
   user_email: string | null;
   token_path_exists: boolean;
+  reauth_state?: "idle" | "in_progress" | "completed" | "failed";
+  reauth_error?: string | null;
+}
+
+export interface ReauthResponse {
+  state: "in_progress";
+  message?: string;
 }

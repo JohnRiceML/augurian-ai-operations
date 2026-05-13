@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getStatus } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { getStatus, startReauth } from "@/lib/api";
 import type { StatusResponse } from "@/lib/types";
 
 const CLIENT_KEY = "augur.client";
@@ -96,6 +96,12 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [client, setClient] = useState("sandbox");
   const [folderId, setFolderId] = useState("");
+  // Re-auth UI state. `triggering` means we've POSTed /api/reauth and are
+  // waiting for the server to confirm it kicked off. `running` means the
+  // OAuth flow is in flight on the server.
+  const [reauthMsg, setReauthMsg] = useState<string | null>(null);
+  const [reauthBusy, setReauthBusy] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -108,6 +114,49 @@ export default function SettingsPage() {
     setClient(window.localStorage.getItem(CLIENT_KEY) || "sandbox");
     setFolderId(window.localStorage.getItem(FOLDER_KEY) || "");
   }, []);
+
+  // Poll /api/status every 1.5s while a re-auth is in progress, so the
+  // pills flip to green automatically once the user finishes the browser
+  // consent. Stop polling on completion/failure.
+  useEffect(() => {
+    const inProgress = status?.reauth_state === "in_progress";
+    if (!inProgress) {
+      if (pollRef.current !== null) {
+        window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      return;
+    }
+    if (pollRef.current !== null) return;
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const fresh = await getStatus();
+        setStatus(fresh);
+        if (fresh.reauth_state === "completed") {
+          setReauthMsg("Authorized. All three services connected.");
+          setReauthBusy(false);
+        } else if (fresh.reauth_state === "failed") {
+          setReauthMsg(`Auth failed: ${fresh.reauth_error ?? "unknown error"}`);
+          setReauthBusy(false);
+        }
+      } catch {
+        /* ignore — try again next tick */
+      }
+    }, 1500) as unknown as number;
+  }, [status?.reauth_state]);
+
+  async function onReauthClick() {
+    setReauthBusy(true);
+    setReauthMsg("Browser should open shortly — click through the consent.");
+    try {
+      await startReauth();
+      // Force a status refresh so the polling effect picks up `in_progress`.
+      setStatus(await getStatus());
+    } catch (e) {
+      setReauthBusy(false);
+      setReauthMsg(`Failed to start auth: ${(e as Error).message}`);
+    }
+  }
 
   // Persist on change — there's no "save" button, but we render a
   // saved-indicator so the user gets feedback.
@@ -310,13 +359,40 @@ export default function SettingsPage() {
               Loading status…
             </div>
           )}
+
+          {/* Re-auth controls. Visible whenever the user might want to
+              re-run the consent — e.g., the 7-day External+Testing
+              token just expired, or a scope is missing. */}
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-[13px] text-muted dark:text-muted-dark">
+              {status?.reauth_state === "in_progress"
+                ? "Auth in progress — finish the consent in your browser."
+                : "Token expired? Re-run the consent without leaving this page."}
+            </div>
+            <button
+              type="button"
+              onClick={onReauthClick}
+              disabled={reauthBusy || status?.reauth_state === "in_progress"}
+              className="rounded-md bg-augur-orange px-3 py-1.5 text-[13px] font-medium text-white hover:bg-augur-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {status?.reauth_state === "in_progress"
+                ? "Waiting on consent…"
+                : "Re-authorize Google"}
+            </button>
+          </div>
+          {reauthMsg && (
+            <div className="mt-2 text-[12.5px] text-muted dark:text-muted-dark">
+              {reauthMsg}
+            </div>
+          )}
+
           {(!status ||
             status.drive !== "connected" ||
             status.ga4 !== "connected" ||
             status.gsc !== "connected") && (
             <div className="mt-5 rounded-md border border-[color:var(--border)] bg-[color:var(--bg)] p-3">
               <p className="text-[13px] text-muted dark:text-muted-dark mb-2">
-                Run this from the repo root:
+                Alternative — run this from the repo root:
               </p>
               <pre className="overflow-x-auto rounded bg-[color:var(--surface)] p-2 font-mono text-[12.5px] border border-[color:var(--border)]">
                 {AUTH_CMD}

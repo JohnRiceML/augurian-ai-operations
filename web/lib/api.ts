@@ -6,6 +6,7 @@
 import type {
   ChatEvent,
   Message,
+  ReauthResponse,
   StatusResponse,
 } from "./types";
 
@@ -15,6 +16,17 @@ export async function getStatus(): Promise<StatusResponse> {
     throw new Error(`status fetch failed: ${res.status}`);
   }
   return (await res.json()) as StatusResponse;
+}
+
+export async function startReauth(): Promise<ReauthResponse> {
+  const res = await fetch("/api/reauth", {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (!res.ok && res.status !== 202) {
+    throw new Error(`reauth request failed: ${res.status}`);
+  }
+  return (await res.json()) as ReauthResponse;
 }
 
 export interface StreamChatOptions {
